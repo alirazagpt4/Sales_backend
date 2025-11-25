@@ -74,6 +74,9 @@ export const loginUser = async (req , res) =>{
             process.env.JWT_SECRET,
         );
 
+
+        res.cookie('token', token);
+
         res.status(200).json({
             message: 'Login successful',
             token,
@@ -92,6 +95,11 @@ export const loginUser = async (req , res) =>{
         console.error('Error logging in user:', err);
         res.status(500).json({ error: 'Internal server error' });
     }
+}
+
+
+export const getAllUsers = async (req , res) => {
+
 }
 
 
