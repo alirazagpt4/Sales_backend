@@ -7,6 +7,9 @@ import sequelize from'./config/db.js';
 import salesRoutes from './routes/sales.js';
 // import User from './models/User.js';
 import userRoutes from './routes/user.routes.js';
+import startdayRoutes from './routes/startday.routes.js';
+
+
 
 
 const app = express();
@@ -24,6 +27,8 @@ app.get('/' , (req , res) =>{
 });
 
 app.use('/api/users' , userRoutes);
+// app.use('/api' , salesRoutes);
+app.use('/api' , startdayRoutes);
 
 (async () =>{
 try {
