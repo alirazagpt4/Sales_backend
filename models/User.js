@@ -1,6 +1,8 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../config/db.js";
 
+import Visits from "./visits.model.js";
+
 const User = sequelize.define('User' , {
      id:{
         type: DataTypes.INTEGER,
@@ -35,4 +37,10 @@ const User = sequelize.define('User' , {
      
 });
 
+
+// 2. Association define karein
+User.hasMany(Visits, {
+    foreignKey: 'user_id', // Visits table mein jo foreign key hai
+    as: 'visits'             // Jab data fetch karenge toh kis naam se aayega
+});
 export default User;

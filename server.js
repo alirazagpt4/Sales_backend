@@ -8,13 +8,15 @@ import salesRoutes from './routes/sales.js';
 // import User from './models/User.js';
 import userRoutes from './routes/user.routes.js';
 import startdayRoutes from './routes/startday.routes.js';
+import customersRoutes from './routes/customers.routes.js';
+import './models/associations.js';
 
 
 
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-// Middleware
+// Middleware 
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
@@ -27,15 +29,16 @@ app.get('/' , (req , res) =>{
 });
 
 app.use('/api/users' , userRoutes);
-// app.use('/api' , salesRoutes);
+
 app.use('/api' , startdayRoutes);
+app.use('/api/customers' , customersRoutes);
 
 (async () =>{
 try {
-    await sequelize.authenticate();
-    await sequelize.sync()
-    .then(()=> console.log("user table ready"))
-    .catch((err) => console.log("Error creating table:", err));
+    await sequelize.authenticate()
+    // await sequelize.sync()
+    // .then(()=> console.log("user table ready"))
+    // .catch((err) => console.log("Error creating table:", err));
     
     console.log('Database connected successfully.');
 
