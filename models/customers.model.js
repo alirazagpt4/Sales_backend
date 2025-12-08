@@ -34,14 +34,13 @@ const Customers = sequelize.define('Customers', {
         allowNull: false,
     },
     // Removing 'purpose' and 'date' from here (as per recommendation to keep them in Visit)
-});
+}, {
+    tableName: 'customers', // Force chote harfon wala table name
+    freezeTableName: true   
+})
 
 
-// 2. Association define karein
-Customers.hasMany(Visits, {
-    foreignKey: 'customer_id', // Visits table mein jo foreign key hai
-    as: 'visits'             // Jab data fetch karenge toh kis naam se aayega
-});
+
 
 // Export default if using ES Modules
 // export default Customer;

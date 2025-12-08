@@ -36,7 +36,7 @@ const Visits = sequelize.define('Visits', {
     // Purpose and Type
     purpose: {
         type: DataTypes.ENUM('Visit', 'Mature'),
-        allowNull: false,
+        allowNull: true
     },
     date: { 
         type: DataTypes.DATEONLY, // To store date only (YYYY-MM-DD)
@@ -49,13 +49,10 @@ const Visits = sequelize.define('Visits', {
         allowNull: true,
     },
 
-    // --- System Generated Fields ---
-    
-    timestamp: { 
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW, // Server will set the time of record creation
-        allowNull: false
-    }
+  
+},{ // <-- Yahan options object shuru hota hai
+    tableName: 'visits',       // Force chote harfon wala table name
+    freezeTableName: true,     // Sequelize ko Model ka naam plural banane se rokein
 });
 
 

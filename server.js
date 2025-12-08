@@ -9,8 +9,9 @@ import salesRoutes from './routes/sales.js';
 import userRoutes from './routes/user.routes.js';
 import startdayRoutes from './routes/startday.routes.js';
 import customersRoutes from './routes/customers.routes.js';
+import visitsRoutes from './routes/visits.routes.js';
 import './models/associations.js';
-
+import path from 'path';
 
 
 
@@ -20,6 +21,8 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+app.use(express.static(path.join(path.resolve(), 'public')));
+app.use('/public', express.static(path.join(process.cwd(), 'uploads')));
 
 
 app.get('/' , (req , res) =>{
@@ -32,6 +35,9 @@ app.use('/api/users' , userRoutes);
 
 app.use('/api' , startdayRoutes);
 app.use('/api/customers' , customersRoutes);
+app.use('/api/visits' , visitsRoutes);
+
+
 
 (async () =>{
 try {
