@@ -1,7 +1,7 @@
 import express from  'express';
-import {createCustomer, getAllCustomers, getCustomerById} from '../controllers/customers.controller.js';
+import {createCustomer, getAllCustomers, getCustomerById , updateCustomerById ,deleteCustomerById} from '../controllers/customers.controller.js';
 const router = express.Router();
-import { authenticateToken } from '../Middlewares/authMiddleware.js';
+import { authenticateToken , isAdmin } from '../Middlewares/authMiddleware.js';
 
 
 // Route to create a new customer
@@ -12,5 +12,11 @@ router.get('/' , authenticateToken ,  getAllCustomers);
 
 // Route to get a customer by ID
 router.get('/:id', authenticateToken, getCustomerById);
+
+// Route to update a customer by ID
+router.patch('/:id', authenticateToken, isAdmin, updateCustomerById);
+
+// Route to delete a customer by ID
+router.delete('/:id', authenticateToken, isAdmin, deleteCustomerById);
 
 export default router;

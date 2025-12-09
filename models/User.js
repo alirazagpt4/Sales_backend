@@ -34,6 +34,10 @@ const User = sequelize.define('User' , {
         allowNull: false,
 
     },
+    last_login: {
+      type: DataTypes.DATE, // DataType DATE hona chahiye
+      allowNull: true
+    }
      
 });
 

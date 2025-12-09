@@ -90,7 +90,90 @@ const getCustomerById = async (req, res) => {
 }
 
 
+// Export the controller functions
+
+
+// Update customer by ID
+const updateCustomerById = async (req, res) => {
+    const customerId = req.params.id;
+
+    const updatedData = req.body;
+
+    try {
+        const customer = await Customers.findByPk(customerId);
+        console.log("customer id " , customer)
+
+        if (!customer) {
+            return res.status(404).json({ message: "Customer not found" });
+        }
+
+        // 2. Customer ko update karein
+        const [updatedRowsCount] = await Customers.update(updatedData, {
+            where: { id: customerId }
+        });
+
+        if(updatedRowsCount > 0){
+            const updatedCustomer = await Customers.findByPk( customerId);
+            return res.status(200).json({
+                "message":"Updated Customer Succesfully",
+                "customer": updatedCustomer
+            });
+        }
+        else{
+            // Agar customer mil gaya tha, lekin koi data change nahi hua (updatedRowsCount === 0)
+            // Toh 200 OK message bhejna chahiye, 400 nahi.
+            return res.status(200).json({ message: "No changes made to customer" });
+        }
+
+
+        
+    }catch (error) {
+        // ... (Aapka detailed error handling code yahan hai)
+        console.error("--- DETAILED UPDATE ERROR ---:", error); 
+        
+        let statusCode = (error.name === 'SequelizeUniqueConstraintError' || error.name === 'SequelizeValidationError') ? 400 : 500;
+
+        res.status(statusCode).json({ 
+            message: "Update failed due to bad data or constraint issue.",
+            details: error.message 
+        });
+    }
+
+
+};
 
 
 
-export { createCustomer, getAllCustomers  , getCustomerById };  
+
+
+// Delete customer by ID
+const deleteCustomerById = async (req, res) => {
+    const customerId = req.params.id;
+
+    try {
+        const deletedRows = await Customers.destroy({
+            where: { id: customerId }
+        });
+
+        console.log("deletedRows" , deletedRows);
+        if (deletedRows) {
+            res.status(200).json({ message: "Customer deleted successfully" });
+        }
+        else {
+            res.status(404).json({ message: "Customer not found" });
+        }
+    } catch (error) {
+        console.error("Error deleting customer:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+
+
+
+
+
+
+
+
+export { createCustomer, getAllCustomers  , getCustomerById , updateCustomerById, deleteCustomerById };  

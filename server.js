@@ -1,4 +1,5 @@
 import express from 'express';
+// console.log("Starting server..." , express);
 import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
@@ -9,7 +10,9 @@ import salesRoutes from './routes/sales.js';
 import userRoutes from './routes/user.routes.js';
 import startdayRoutes from './routes/startday.routes.js';
 import customersRoutes from './routes/customers.routes.js';
-import visitsRoutes from './routes/visits.routes.js';
+import visitsRoutes from './routes/visits.routes.js'
+import kpisRoutes from './routes/kpis.routes.js';
+import reportsRoutes from './routes/report.routes.js';
 import './models/associations.js';
 import path from 'path';
 
@@ -32,10 +35,11 @@ app.get('/' , (req , res) =>{
 });
 
 app.use('/api/users' , userRoutes);
-
 app.use('/api' , startdayRoutes);
 app.use('/api/customers' , customersRoutes);
 app.use('/api/visits' , visitsRoutes);
+app.use('/api' , kpisRoutes);
+app.use('/api',reportsRoutes);
 
 
 
