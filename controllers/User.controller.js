@@ -3,17 +3,18 @@ import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { Op } from 'sequelize';
+import City from '../models/City.js';
 dotenv.config();
 
 
 export const createUser = async (req, res) => {
     try {
-        const { name , email , password , role} = req.body;
+        const { name , email , password , role , city_id , designation , referred_to , fullname , mobile_ph , whatsapp_ph} = req.body;
 
-        // console.log("body :::",req.body);
+        console.log("body :::",req.body);
 
         // Validation checks
-        if(!name || !email || !password){
+        if(!name || !email || !password || !city_id || !designation || !referred_to  || !fullname || !mobile_ph ||  !whatsapp_ph){
             return res.status(400).json({ error: 'Name, email, and password are required.' });
         }
 
@@ -33,7 +34,13 @@ export const createUser = async (req, res) => {
             name,
             email,
             password: hashedPassword,
-            role
+            role,
+            city_id,
+            designation,
+            referred_to,
+            fullname,
+            mobile_ph,
+            whatsapp_ph
         });
 
         res.status(201).json({ message: 'User created successfully'});
@@ -48,15 +55,15 @@ export const createUser = async (req, res) => {
 
 export const loginUser = async (req , res) =>{
     try{
-        const { email , password} = req.body;
+        const { name , password} = req.body;
         
         // Validation checks
-        if(!email || !password){
+        if(!name || !password){
             return res.status(400).json({ error: 'Email and password are required.' });
         }
 
         // find user by email
-        const user = await User.findOne({ where: { email }});
+        const user = await User.findOne({ where: { name }});
 
         if(!user){
             return res.status(401).json({ error: 'Invalid email or password.' });
@@ -78,7 +85,7 @@ export const loginUser = async (req , res) =>{
 
         // generate JWT token
         const token = jwt.sign(
-            { id: user.id, email: user.email, role: user.role },
+            { id: user.id, email: user.email, role: user.role , name:user.name },
             process.env.JWT_SECRET,
         );
 
@@ -110,10 +117,10 @@ export const loginUser = async (req , res) =>{
 // Admin login
 export const loginAdmin = async (req , res) =>{
    
-    const { email, password } = req.body;
+    const { name, password } = req.body;
     
     // 1. User ko email se dhoondhein
-    const user = await User.findOne({ where: { email } });
+    const user = await User.findOne({ where: { name } });
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
         return res.status(401).json({ message: 'Invalid credentials' });
@@ -125,6 +132,9 @@ export const loginAdmin = async (req , res) =>{
         return res.status(403).json({ message: 'Access denied: Not an administrator' });
     }
 
+    const username = user.name;
+    console.log("username ..." ,username)
+
     // 3. Admin user ke liye JWT generate karein
     const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role }, 
@@ -132,7 +142,7 @@ export const loginAdmin = async (req , res) =>{
         { expiresIn: '1d' }
     );
     
-    res.json({ token });
+    res.json({ token , username });
 };
 
 
@@ -163,8 +173,37 @@ export const getAllUsers = async (req, res) => {
             where: whereClause,
             limit: limit,
             offset: offset,
-            attributes: ['id', 'name', 'email', 'role', 'createdAt'] // Exclude password
+            attributes: ['id', 'name', 'email', 'role', 'createdAt','designation' , 'referred_to','city_id' , 'fullname' , 'mobile_ph' , 'whatsapp_ph'], // Exclude password
+            include: [{
+                model: City, // Ya models.City (jo bhi import kiya ho)
+                as: 'cityDetails', // Wohi alias jo association.js mein diya tha
+                attributes: ['name'], // Sirf City ka Naam chahiye
+                required: false // Left join use hoga
+            }],      
         });
+
+
+
+        // 🔑 DATA MAPPING: Response ko flatten karna (City Name ko direct field banana)
+        const formattedUsers = users.map(user => ({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            createdAt: user.createdAt,
+            designation: user.designation,
+            referred_to: user.referred_to,
+            fullname: user.fullname,
+            mobile_ph:user.mobile_ph,
+            whatsapp_ph:user.mobile_ph,
+            
+            // 🔑 City ka Naam direct field
+            cityName: user.cityDetails ? user.cityDetails.name : 'N/A', 
+            
+            // Agar phir bhi ID chahiye to yahan rakh sakte hain
+            city_id: user.city_id 
+        }));
+        //
 
         res.status(200).json({
             totalUsers: count,
@@ -180,11 +219,73 @@ export const getAllUsers = async (req, res) => {
 }
 
 
+export const viewUser = async (req , res) =>{
+    try {
+        const { id } = req.params; // ID ko URL parameters se nikalna (e.g., /users/5)
+
+        // User data ko ID aur associations ke saath fetch karna
+        const user = await User.findByPk(id, {
+            // 🔑 Naye fields ke saath attributes define karein
+            attributes: [
+                'id', 
+                'name', 
+                'email', 
+                'role', 
+                'createdAt',
+                'designation', 
+                'referred_to', 
+                'last_login',
+                'fullname',
+                'mobile_ph',
+                'whatsapp_ph' // Agar aapne yeh field add kiya tha
+            ],
+            
+            // 🔑 City ka Naam laane ke liye include/association use karein
+            include: [{
+                model: City, 
+                as: 'cityDetails', // Wohi alias jo association.js mein diya tha
+                attributes: ['name'], 
+                required: false // Agar City ID null ho to crash na ho
+            }],
+        });
+
+        // Agar user nahi milta
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // 🔑 Data ko Flatten karna (City Name ko direct field banana)
+        // User object ko simple JSON mein convert karein
+        const userData = user.toJSON(); 
+        
+        // City ka Naam nikal kar direct field bana dein
+        const formattedUser = {
+            ...userData,
+            cityName: userData.cityDetails ? userData.cityDetails.name : 'N/A',
+            city_id: userData.city_id, // City ID bhi rakh sakte hain
+        };
+        
+        // Association object ko final response se hata dein (clean-up)
+        delete formattedUser.cityDetails;
+
+
+        res.status(200).json({
+            message: 'User details fetched successfully',
+            user: formattedUser
+        });
+
+    } catch (err) {
+        console.error(`Error fetching user ID ${req.params.id}:`, err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+} 
+
+
 
 export const updateUser = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, email, password, role } = req.body;
+        const { name, email, password, role , city_id , designation , referred_to,fullname , mobile_ph , whatsapp_ph} = req.body;
 
         const user = await User.findByPk(id);
 
@@ -203,6 +304,13 @@ export const updateUser = async (req, res) => {
             updateData.password = await bcrypt.hash(password, 10);
         }
 
+        if(city_id) updateData.city_id = city_id;
+        if(designation) updateData.designation = designation;
+        if(referred_to) updateData.designation = designation;
+        if(fullname) updateData.fullname = fullname;
+        if(mobile_ph) updateData.mobile_ph = mobile_ph;
+        if(whatsapp_ph) updateData.whatsapp_ph = whatsapp_ph;
+        
         await user.update(updateData);
 
         res.status(200).json({ message: 'User updated successfully' });

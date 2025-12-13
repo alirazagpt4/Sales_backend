@@ -14,6 +14,12 @@ const User = sequelize.define('User' , {
     name:{
         type : DataTypes.STRING,
         allowNull: true,
+        unique:true
+    },
+    fullname:{
+      type:DataTypes.STRING,
+      allowNull:false,
+
     },
     email:{
         type: DataTypes.STRING,
@@ -37,6 +43,29 @@ const User = sequelize.define('User' , {
     last_login: {
       type: DataTypes.DATE, // DataType DATE hona chahiye
       allowNull: true
+    },
+    designation: {
+      type: DataTypes.STRING,
+      allowNull: true, // Agar optional hai
+    },
+    referred_to: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    city_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      // Foreign Key reference yahan nahi dete, woh sirf association mein hota hai
+    },
+    mobile_ph:{
+      type:DataTypes.STRING,
+      allowNull:true,
+      unique:true
+    },
+    whatsapp_ph :{
+      type:DataTypes.STRING,
+      allowNull:true,
+      unique:true
     }
      
 });

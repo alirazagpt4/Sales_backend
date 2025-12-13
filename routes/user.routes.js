@@ -2,7 +2,7 @@ import express from "express";
 const router = express.Router();
 import { authenticateToken, isAdmin } from "../Middlewares/authMiddleware.js";
 
-import { createUser , loginUser , loginAdmin, getAllUsers, updateUser, deleteUser } from "../controllers/User.controller.js";
+import { createUser , loginUser , loginAdmin, getAllUsers, updateUser, deleteUser, viewUser } from "../controllers/User.controller.js";
 
 // Route to create a new user
 router.post('/register' ,authenticateToken , isAdmin, createUser);
@@ -16,6 +16,10 @@ router.post('/admin/login', loginAdmin);
 
 router.get('/' , authenticateToken , isAdmin , getAllUsers);
 
+
+
+
+router.get('/:id' , authenticateToken , isAdmin , viewUser);
 
 router.patch('/:id' , authenticateToken , isAdmin , updateUser);
 
