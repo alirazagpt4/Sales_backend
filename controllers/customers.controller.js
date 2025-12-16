@@ -1,11 +1,11 @@
 import Customers from '../models/customers.model.js';
 import { Op } from 'sequelize';
-
+import City from '../models/City.js';
 // console.log("Customers Model in Controller:", Customers);
 
 const createCustomer = async (req ,res) =>{
 
-    const { id , customer_name, contact, area, tehsil, bags_potential, type } = req.body;
+    const { id , customer_name, contact, area, tehsil, bags_potential, type , city_id } = req.body;
 
 
     try{
@@ -17,7 +17,8 @@ const createCustomer = async (req ,res) =>{
             area: area,
             tehsil: tehsil,
             bags_potential: bags_potential,
-            type: type
+            type: type,
+            city_id,city_id
 
         });
 
@@ -45,12 +46,18 @@ const createCustomer = async (req ,res) =>{
 
 const getAllCustomers = async (req, res) => {
     try {
+        // 1. Pagination Parameters nikalna
+        const page = parseInt(req.query.page) || 1; // Default page 1
+        const limit = parseInt(req.query.limit) || 10; // Default limit 10 records
+        
+        // 2. Offset calculate karna
+        const offset = (page - 1) * limit;
+
         const { search } = req.query;
         let whereCondition = {};
 
-        // Agar search keyword maujood ho, toh WHERE condition tayyar karein
+        // Search logic jaisa pehle tha
         if (search) {
-            // Sequelize Op.or use karke customer_name, contact, ya area mein search karein
             whereCondition = {
                 [Op.or]: [
                     { customer_name: { [Op.like]: `%${search}%` } },
@@ -60,11 +67,51 @@ const getAllCustomers = async (req, res) => {
             };
         }
 
-
-        const  customers = await Customers.findAll({
-            where: whereCondition
+        // 3. Sequelize.findAndCountAll ka istemaal karein
+        const { count, rows: customers } = await Customers.findAndCountAll({
+            where: whereCondition,
+            
+            // Pagination Options
+            limit: limit,
+            offset: offset,
+            
+           
+            
+            // 🚀 CHANGE 1: City association ko include karein
+            include: [{
+                model: City, // Aapki City Model
+                as: 'cityDetails', // Wohi alias jo association.js mein Customers model ke liye diya tha
+                attributes: ['name'], // ⚠️ Yahan 'cityName' ya 'name' jo bhi aapki City table mein naam hai
+                required: false // Agar cityId optional hai (NULL ho sakta hai)
+            }], 
         });
-        res.status(200).json(customers);
+
+
+        
+        // 4. Total Pages calculate karna
+        const totalPages = Math.ceil(count / limit);
+
+
+        const formattedCustomers = customers.map(customer => ({
+            ...customer.toJSON(), // Saare existing fields copy karein
+            
+            // City ka Naam direct field
+            cityName: customer.cityDetails ? customer.cityDetails.name : 'N/A', 
+            
+            // customer.cityDetails object ko response se hata dein agar zaroori ho
+            cityDetails: undefined 
+        }));
+
+        // 5. Response mein Data aur Pagination Metadata bhejna
+        res.status(200).json({
+            data: formattedCustomers,
+            pagination: {
+                totalItems: count,
+                totalPages: totalPages,
+                currentPage: page,
+                itemsPerPage: limit,
+            },
+        });
         
     } catch (error) {
         console.error("Error fetching customers:", error);
@@ -72,6 +119,41 @@ const getAllCustomers = async (req, res) => {
     }
 }
 
+
+
+const getAllCustomersByCity = async (req , res) =>{
+    const user = req.user;
+    try {
+        const userCityId = user.city_id;
+        
+        const customers = await Customers.findAll({
+            where: {
+                city_id: userCityId 
+            },
+            // 🛑 OPTIONAL: Agar aap sirf kuch specific fields chahte hain toh 'attributes' use karein
+            attributes: [
+                'id', 
+                'customer_name', 
+                'contact', // ✅ Contact field zaroor include karein
+                'area',
+                'tehsil',
+                'type',
+                'city_id'
+                // Aapke Customer Model ke baaki zaroori fields yahan add karein
+            ],
+            order: [['customer_name', 'ASC']], 
+        });
+
+        // 🛑 Frontend Ko Jawab: response.data.customers mein contact available hoga
+        return res.status(200).json({ 
+            customers: customers,
+        });
+
+    } catch (error) {
+        console.error('SERVER ERROR fetching customers by city:', error);
+        return res.status(500).json({ message: "Internal server error during data retrieval." });
+    }
+}
 
 const getCustomerById = async (req, res) => {
     const customerId = req.params.id;
@@ -176,4 +258,4 @@ const deleteCustomerById = async (req, res) => {
 
 
 
-export { createCustomer, getAllCustomers  , getCustomerById , updateCustomerById, deleteCustomerById };  
+export { createCustomer, getAllCustomers  , getCustomerById , updateCustomerById, deleteCustomerById  , getAllCustomersByCity};  

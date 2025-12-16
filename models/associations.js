@@ -28,4 +28,16 @@ City.hasMany(User , {
     foreignKey:'city_id'
 });
 
+Customers.belongsTo(City , {
+    foreignKey:'city_id',
+    as : 'cityDetails'
+});
+
+City.hasMany(Customers , {
+    foreignKey:'city_id',
+    as : 'cityDetails'
+});
+
+
+
 export { User, Customers, Visits, Startday , City};

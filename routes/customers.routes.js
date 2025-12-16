@@ -1,5 +1,5 @@
 import express from  'express';
-import {createCustomer, getAllCustomers, getCustomerById , updateCustomerById ,deleteCustomerById} from '../controllers/customers.controller.js';
+import {createCustomer, getAllCustomers, getCustomerById , updateCustomerById ,deleteCustomerById , getAllCustomersByCity} from '../controllers/customers.controller.js';
 const router = express.Router();
 import { authenticateToken , isAdmin } from '../Middlewares/authMiddleware.js';
 
@@ -9,6 +9,9 @@ router.post('/create-customer', authenticateToken, createCustomer);
 
 // Route to get all customers with optional search
 router.get('/' , authenticateToken ,  getAllCustomers);
+
+// customers by city 
+router.get('/by-city' , authenticateToken ,  getAllCustomersByCity);
 
 // Route to get a customer by ID
 router.get('/:id', authenticateToken, getCustomerById);

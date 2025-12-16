@@ -15,7 +15,7 @@ export const createUser = async (req, res) => {
 
         // Validation checks
         if(!name || !email || !password || !city_id || !designation || !referred_to  || !fullname || !mobile_ph ||  !whatsapp_ph){
-            return res.status(400).json({ error: 'Name, email, and password are required.' });
+            return res.status(400).json({ error: 'all fields are required are required.' });
         }
 
         // Check if user already exists
@@ -85,7 +85,7 @@ export const loginUser = async (req , res) =>{
 
         // generate JWT token
         const token = jwt.sign(
-            { id: user.id, email: user.email, role: user.role , name:user.name },
+            { id: user.id, email: user.email, role: user.role , name:user.name , city_id:user.city_id },
             process.env.JWT_SECRET,
         );
 
@@ -99,7 +99,8 @@ export const loginUser = async (req , res) =>{
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                role: user.role,
+                city_id:user.city_id
             }
         });
 

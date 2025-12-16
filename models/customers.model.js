@@ -33,6 +33,11 @@ const Customers = sequelize.define('Customers', {
         type: DataTypes.ENUM('Farmer', 'Dealer'),
         allowNull: false,
     },
+     city_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      // Foreign Key reference yahan nahi dete, woh sirf association mein hota hai
+    }
     // Removing 'purpose' and 'date' from here (as per recommendation to keep them in Visit)
 }, {
     tableName: 'customers', // Force chote harfon wala table name
