@@ -3,51 +3,52 @@ import User from '../models/User.js';
 import Startday from '../models/startday.model.js';
 import Customers from '../models/customers.model.js';
 import City from '../models/City.js';
-import { Op, Sequelize } from 'sequelize';
+import { Op } from 'sequelize';
 
 export const generateDailyVisitReport = async (req, res) => {
     try {
-        // Query params: ?name=Furqan&city=Faisalabad&date=2025-12-11
-        const { name, city, date } = req.query;
+        const { name, fromDate, toDate } = req.query;
 
-        if (!name || !city || !date) {
-            return res.status(400).json({ error: "Name, City, and Date are all required" });
+        if (!name || !fromDate || !toDate) {
+            return res.status(400).json({ error: "Name, From Date, and To Date are all required" });
         }
 
-        // 1. Pehle User aur City ki ID find karein (Filtering ke liye)
+        // 1. User aur City details fetch karein
         const user = await User.findOne({
             where: { name: name },
             include: [{
                 model: City,
-                as: 'cityDetails',
-                where: { name: city } // City name filter yahan apply hoga
+                as: 'cityDetails' 
             }]
         });
 
         if (!user) {
-            return res.status(404).json({ error: "User not found in the specified city" });
+            return res.status(404).json({ error: "User not found" });
         }
 
         const user_id = user.id;
+        const designation = user.designation;
+        const fullname = user.fullname
+        const userCity = user.cityDetails?.name || 'N/A';
 
-        // 2. Us din ki Meter Reading nikalna (Startday table se)
-        const dayInfo = await Startday.findOne({
+        // 2. Startday table se Meter Readings fetch karein
+        const dayInfos = await Startday.findAll({
             where: {
                 userId: user_id,
-                [Op.and]: [
-                    Sequelize.where(Sequelize.fn('DATE', Sequelize.col('createdAt')), date)
-                ]
+                createdAt: {
+                    [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`]
+                }
             },
-            attributes: ['startReading']
+            attributes: ['startReading', 'photoUri','createdAt']
         });
 
-        // 3. Visits fetch karna Joins ke saath
+        // 3. Visits aur Customer details fetch karein
         const visits = await Visits.findAll({
             where: {
                 user_id: user_id,
-                [Op.and]: [
-                    Sequelize.where(Sequelize.fn('DATE', Sequelize.col('visits.createdAt')), date)
-                ]
+                createdAt: {
+                    [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`]
+                }
             },
             include: [
                 {
@@ -59,29 +60,61 @@ export const generateDailyVisitReport = async (req, res) => {
             order: [['createdAt', 'ASC']]
         });
 
-        // 4. Final Response Structure (Jaisa aapne sketch kiya tha)
+        // --- 🟢 STEP 1: Pehle flat data map karein ---
+        const flatData = visits.map(v => {
+            const visitDate = v.createdAt.toISOString().split('T')[0];
+            const dayReading = dayInfos.find(d => 
+                d.createdAt.toISOString().split('T')[0] === visitDate
+            );
+
+            return {
+                date: visitDate,
+                customer_name: v.customer?.customer_name || 'N/A',
+                area: v.customer?.area || 'N/A',
+                type: v.customer?.type || 'N/A',
+                status: v.is_completed ? 'OK' : 'Yes', 
+                start_meter_reading: dayReading?.startReading || 'N/A',
+                photoUri: dayReading?.photoUri || null //
+            };
+        });
+
+        // --- 🟢 STEP 2: Ab Data ko GROUP karein (RowSpan ke liye zaroori) ---
+        const groupedReport = [];
+        flatData.forEach(item => {
+            // Check karein kya is date ka group pehle se hai?
+            let existingGroup = groupedReport.find(g => g.date === item.date);
+
+            if (existingGroup) {
+                // Agar date match ho gayi, toh sirf visit add karein
+                existingGroup.visits.push(item);
+            } else {
+                // Agar nayi date hai, toh naya group banayein
+                groupedReport.push({
+                    date: item.date,
+                    meter_reading: item.start_meter_reading, // Common Meter Reading
+                    photoUri: item.photoUri, //common photo
+                    visits: [item] // Is din ki pehli visit
+                });
+            }
+        });
+
+        // 4. Final Organized Response
         const responseData = {
             meta: {
-                sales_person: name,
-                city: city,
-                date: date,
-                day_start_meter: dayInfo?.meter_reading || 'N/A'
+                sales_person: fullname,
+                city: userCity,
+                from_date: fromDate,
+                to_date: toDate,
+                total_visits: visits.length,
+                designation: designation
             },
-            report: visits.map(v => ({
-                date: date,                       // 1st column
-                customer_name: v.customer?.customer_name,
-                area: v.customer?.area,
-                type: v.customer?.type,
-                visit_datetime: v.createdAt,      // Time for formatting
-                status: v.is_completed ? 'OK' : '', 
-                meter_reading: dayInfo?.meter_reading || 'N/A' // Last column
-            }))
+            report: groupedReport 
         };
 
         return res.status(200).json(responseData);
 
     } catch (error) {
-        console.error('API Test Error:', error);
+        console.error('API Error:', error);
         res.status(500).json({ error: error.message });
     }
 };

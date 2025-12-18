@@ -126,9 +126,12 @@ const getAllCustomersByCity = async (req , res) =>{
     try {
         const userCityId = user.city_id;
         
+        
         const customers = await Customers.findAll({
             where: {
-                city_id: userCityId 
+                city_id: userCityId ,
+               
+
             },
             // 🛑 OPTIONAL: Agar aap sirf kuch specific fields chahte hain toh 'attributes' use karein
             attributes: [

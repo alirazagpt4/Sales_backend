@@ -16,6 +16,7 @@ const Customers = sequelize.define('Customers', {
     contact: { 
         type: DataTypes.STRING,
         allowNull: false,
+        unique:true
     },
     area: {
         type: DataTypes.STRING,

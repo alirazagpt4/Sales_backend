@@ -288,6 +288,7 @@ export const updateUser = async (req, res) => {
         const { id } = req.params;
         const { name, email, password, role , city_id , designation , referred_to,fullname , mobile_ph , whatsapp_ph} = req.body;
 
+        console.log("update ''''''''' user data" , req.body);
         const user = await User.findByPk(id);
 
         if (!user) {
@@ -307,7 +308,7 @@ export const updateUser = async (req, res) => {
 
         if(city_id) updateData.city_id = city_id;
         if(designation) updateData.designation = designation;
-        if(referred_to) updateData.designation = designation;
+        if(referred_to) updateData.referred_to = referred_to;
         if(fullname) updateData.fullname = fullname;
         if(mobile_ph) updateData.mobile_ph = mobile_ph;
         if(whatsapp_ph) updateData.whatsapp_ph = whatsapp_ph;
