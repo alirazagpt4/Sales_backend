@@ -39,7 +39,7 @@ export const generateDailyVisitReport = async (req, res) => {
                     [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`]
                 }
             },
-            attributes: ['startReading', 'photoUri','createdAt']
+            attributes: ['startReading', 'photoUri','createdAt' , 'location_latitude', 'location_longitude']
         });
 
         // 3. Visits aur Customer details fetch karein
@@ -74,7 +74,11 @@ export const generateDailyVisitReport = async (req, res) => {
                 type: v.customer?.type || 'N/A',
                 status: v.is_completed ? 'OK' : 'Yes', 
                 start_meter_reading: dayReading?.startReading || 'N/A',
-                photoUri: dayReading?.photoUri || null //
+                start_day_time: dayReading ? dayReading.createdAt.toISOString() : null,
+                photoUri: dayReading?.photoUri || null, //
+                visit_location: { lat: v.latitude, lng: v.longitude },
+                start_day_location: dayReading ? { lat: dayReading.location_latitude, lng: dayReading.location_longitude } : null,
+
             };
         });
 
@@ -93,6 +97,8 @@ export const generateDailyVisitReport = async (req, res) => {
                     date: item.date,
                     meter_reading: item.start_meter_reading, // Common Meter Reading
                     photoUri: item.photoUri, //common photo
+                    start_location: item.start_day_location, // common start location
+                    start_time: item.start_day_time, // common start time
                     visits: [item] // Is din ki pehli visit
                 });
             }

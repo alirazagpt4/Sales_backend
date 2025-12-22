@@ -59,21 +59,24 @@ export const loginUser = async (req , res) =>{
         
         // Validation checks
         if(!name || !password){
-            return res.status(400).json({ error: 'Email and password are required.' });
+            return res.status(400).json({ error: 'Name and password are required.' });
         }
+
+        console.log("login req body . . .  .. . . . . . . . . . . . . . in login request  " , req.body);
+
 
         // find user by email
         const user = await User.findOne({ where: { name }});
 
         if(!user){
-            return res.status(401).json({ error: 'Invalid email or password.' });
+            return res.status(401).json({ error: 'Invalid name or password.' });
         }
 
         // compare password
         const isPasswordValid = await bcrypt.compare(password , user.password);
 
         if(!isPasswordValid){
-            return res.status(401).json({ error: 'Invalid email or password.' });
+            return res.status(401).json({ error: 'Invalid name or password.' });
         }
 
 
@@ -174,7 +177,7 @@ export const getAllUsers = async (req, res) => {
             where: whereClause,
             limit: limit,
             offset: offset,
-            attributes: ['id', 'name', 'email', 'role', 'createdAt','designation' , 'referred_to','city_id' , 'fullname' , 'mobile_ph' , 'whatsapp_ph'], // Exclude password
+            attributes: ['id', 'name', 'email', 'role', 'createdAt','designation' , 'referred_to','city_id' , 'fullname' , 'mobile_ph' , 'whatsapp_ph' , 'region'], // Exclude password
             include: [{
                 model: City, // Ya models.City (jo bhi import kiya ho)
                 as: 'cityDetails', // Wohi alias jo association.js mein diya tha

@@ -141,7 +141,8 @@ const getAllCustomersByCity = async (req , res) =>{
                 'area',
                 'tehsil',
                 'type',
-                'city_id'
+                'city_id',
+                'region'
                 // Aapke Customer Model ke baaki zaroori fields yahan add karein
             ],
             order: [['customer_name', 'ASC']], 
