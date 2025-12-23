@@ -45,6 +45,14 @@ const Customers = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    latitude: {
+      type: DataTypes.DECIMAL(10, 8),
+      allowNull: true,
+    },
+    longitude: {
+      type: DataTypes.DECIMAL(11, 8),
+      allowNull: true,
+    },
     // Removing 'purpose' and 'date' from here (as per recommendation to keep them in Visit)
   },
   {

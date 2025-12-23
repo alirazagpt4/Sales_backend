@@ -5,7 +5,7 @@ import City from '../models/City.js';
 
 const createCustomer = async (req ,res) =>{
 
-    const { id , customer_name, contact, area, tehsil, bags_potential, type , city_id } = req.body;
+    const { id , customer_name, contact, area, tehsil, bags_potential, type , city_id  , latitude, longitude,} = req.body;
 
 
     try{
@@ -18,7 +18,9 @@ const createCustomer = async (req ,res) =>{
             tehsil: tehsil,
             bags_potential: bags_potential,
             type: type,
-            city_id,city_id
+            city_id,city_id,
+            latitude: latitude,
+            longitude: longitude,
 
         });
 
@@ -142,7 +144,9 @@ const getAllCustomersByCity = async (req , res) =>{
                 'tehsil',
                 'type',
                 'city_id',
-                'region'
+                'region',
+                'latitude',
+                'longitude',
                 // Aapke Customer Model ke baaki zaroori fields yahan add karein
             ],
             order: [['customer_name', 'ASC']], 
