@@ -63,7 +63,7 @@ export const generateDailyVisitReport = async (req, res) => {
       include: [
         {
           model: Customers,
-          attributes: ["customer_name", "area", "type"],
+          attributes: ["customer_name", "area", "type" , "bags_potential"],
           as: "customer",
         },
       ],
@@ -93,6 +93,7 @@ export const generateDailyVisitReport = async (req, res) => {
         customer_name: v.customer?.customer_name || "N/A",
         area: v.customer?.area || "N/A",
         type: v.customer?.type || "N/A",
+        bags_potential: v.customer?.bags_potential || "N/A",
         status: v.is_completed ? "OK" : "Yes",
         start_meter_reading: dayReading?.startReading || "N/A",
         start_day_time: dayReading ? dayReading.createdAt.toISOString() : null,

@@ -35,7 +35,7 @@ const Visits = sequelize.define('Visits', {
     
     // Purpose and Type
     purpose: {
-        type: DataTypes.ENUM('Visit', 'Mature'),
+        type: DataTypes.ENUM('New', 'Mature' , 'Old'),
         allowNull: true
     },
     date: { 
