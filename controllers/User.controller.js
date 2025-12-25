@@ -9,20 +9,20 @@ dotenv.config();
 
 export const createUser = async (req, res) => {
     try {
-        const { name , email , password , role , city_id , designation , referred_to , fullname , mobile_ph , whatsapp_ph} = req.body;
+        const { name  , password , role , city_id , designation , fullname , mobile_ph , whatsapp_ph , region} = req.body;
 
         console.log("body :::",req.body);
 
         // Validation checks
-        if(!name || !email || !password || !city_id || !designation || !referred_to  || !fullname || !mobile_ph ||  !whatsapp_ph){
+        if(!name ||   !password || !city_id || !designation ||   !fullname || !mobile_ph ||  !whatsapp_ph || !region){
             return res.status(400).json({ error: 'all fields are required are required.' });
         }
 
         // Check if user already exists
-        const existingUser = await User.findOne({ where: { email}});
+        const existingUser = await User.findOne({ where: { name}});
 
         if(existingUser){
-            return res.status(409).json({ error: 'User with this email already exists.' });
+            return res.status(409).json({ error: 'User with this name already exists.' });
         }
 
         // Hash the password
@@ -32,16 +32,17 @@ export const createUser = async (req, res) => {
         // Create new user
         const newUser = await User.create({
             name,
-            email,
             password: hashedPassword,
             role,
             city_id,
             designation,
-            referred_to,
             fullname,
             mobile_ph,
-            whatsapp_ph
+            whatsapp_ph,
+            region
         });
+
+
 
         res.status(201).json({ message: 'User created successfully'});
 
@@ -177,7 +178,7 @@ export const getAllUsers = async (req, res) => {
             where: whereClause,
             limit: limit,
             offset: offset,
-            attributes: ['id', 'name', 'email', 'role', 'createdAt','designation' , 'referred_to','city_id' , 'fullname' , 'mobile_ph' , 'whatsapp_ph' , 'region'], // Exclude password
+            attributes: ['id', 'name', 'email', 'role', 'createdAt','designation' , 'city_id' , 'fullname' , 'mobile_ph' , 'whatsapp_ph' , 'region'], // Exclude password
             include: [{
                 model: City, // Ya models.City (jo bhi import kiya ho)
                 as: 'cityDetails', // Wohi alias jo association.js mein diya tha
@@ -196,10 +197,10 @@ export const getAllUsers = async (req, res) => {
             role: user.role,
             createdAt: user.createdAt,
             designation: user.designation,
-            referred_to: user.referred_to,
             fullname: user.fullname,
             mobile_ph:user.mobile_ph,
             whatsapp_ph:user.mobile_ph,
+            region:user.region,
             
             // 🔑 City ka Naam direct field
             cityName: user.cityDetails ? user.cityDetails.name : 'N/A', 
@@ -236,12 +237,12 @@ export const viewUser = async (req , res) =>{
                 'email', 
                 'role', 
                 'createdAt',
-                'designation', 
-                'referred_to', 
+                'designation',  
                 'last_login',
                 'fullname',
                 'mobile_ph',
-                'whatsapp_ph' // Agar aapne yeh field add kiya tha
+                'whatsapp_ph',
+                'region', // Agar aapne yeh field add kiya tha
             ],
             
             // 🔑 City ka Naam laane ke liye include/association use karein
@@ -289,7 +290,7 @@ export const viewUser = async (req , res) =>{
 export const updateUser = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, email, password, role , city_id , designation , referred_to,fullname , mobile_ph , whatsapp_ph} = req.body;
+        const { name, email, password, role , city_id , designation , fullname , mobile_ph , whatsapp_ph , region} = req.body;
 
         console.log("update ''''''''' user data" , req.body);
         const user = await User.findByPk(id);
@@ -311,11 +312,11 @@ export const updateUser = async (req, res) => {
 
         if(city_id) updateData.city_id = city_id;
         if(designation) updateData.designation = designation;
-        if(referred_to) updateData.referred_to = referred_to;
         if(fullname) updateData.fullname = fullname;
         if(mobile_ph) updateData.mobile_ph = mobile_ph;
         if(whatsapp_ph) updateData.whatsapp_ph = whatsapp_ph;
-        
+        if(region) updateData.region = region;
+
         await user.update(updateData);
 
         res.status(200).json({ message: 'User updated successfully' });

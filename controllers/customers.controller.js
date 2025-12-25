@@ -5,7 +5,7 @@ import City from '../models/City.js';
 
 const createCustomer = async (req ,res) =>{
 
-    const { id , customer_name, contact, area, tehsil, bags_potential, type , city_id  , latitude, longitude,} = req.body;
+    const { id , customer_name, contact, area, tehsil, bags_potential, type , city_id  , latitude, longitude, region} = req.body;
 
 
     try{
@@ -21,7 +21,7 @@ const createCustomer = async (req ,res) =>{
             city_id,city_id,
             latitude: latitude,
             longitude: longitude,
-
+            region: region
         });
 
         if(newCustomer){

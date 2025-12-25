@@ -81,6 +81,8 @@ export const generateDailyVisitReport = async (req, res) => {
         hour12: true,
       });
 
+      const visitPurpose = v.purpose;
+
 
       const dayReading = dayInfos.find(
         (d) => d.createdAt.toISOString().split("T")[0] === visitDate
@@ -90,6 +92,7 @@ export const generateDailyVisitReport = async (req, res) => {
         date: visitDate,
         createdAt: v.createdAt, // Original timestamp for sorting if needed
         visit_time: visitTime,  // 👈 Yeh field frontend par dikhane ke liye
+        visit_purpose:visitPurpose,
         customer_name: v.customer?.customer_name || "N/A",
         area: v.customer?.area || "N/A",
         type: v.customer?.type || "N/A",
