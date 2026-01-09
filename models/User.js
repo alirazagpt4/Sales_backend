@@ -65,6 +65,21 @@ const User = sequelize.define("User", {
     unique: true,
   },
 
+  // 🚀 Nayi Fields yahan add ho rahi hain
+  // district: {
+  //   type: DataTypes.STRING,
+  //   allowNull: true,
+  // },
+  // division: {
+  //   type: DataTypes.STRING,
+  //   allowNull: true,
+  // },
+  // province: {
+  //   type: DataTypes.STRING,
+  //   allowNull: true,
+  // },
+
+
   region: {
     type: DataTypes.STRING,
     allowNull: true,

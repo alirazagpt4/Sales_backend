@@ -41,6 +41,10 @@ const Customers = sequelize.define(
       allowNull: true,
       // Foreign Key reference yahan nahi dete, woh sirf association mein hota hai
     },
+    user_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
     region: {
       type: DataTypes.STRING,
       allowNull: true,

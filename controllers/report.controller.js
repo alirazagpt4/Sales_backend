@@ -65,10 +65,25 @@ export const generateDailyVisitReport = async (req, res) => {
           model: Customers,
           attributes: ["customer_name", "area", "type" , "bags_potential" , "region"],
           as: "customer",
+          // 🚀 Yeh nested include missing tha, jiski wajah se 'name' undefined ho raha tha
+          include: [
+            {
+              model: City,
+              as: "cityDetails",
+              attributes: ["name"],
+            }
+          ]
         },
+        
       ],
       order: [["createdAt", "ASC"]],
     });
+
+
+    // --- 🟢 COUNTERS (Based on Visit Purpose) ---
+    let newVisits = 0;
+    let matureVisits = 0;
+    let oldVisits = 0;
 
     // --- 🟢 STEP 1: Pehle flat data map karein ---
     const flatData = visits.map((v) => {
@@ -83,6 +98,10 @@ export const generateDailyVisitReport = async (req, res) => {
 
       const visitPurpose = v.purpose;
 
+      if (visitPurpose === "New") newVisits++;
+      else if (visitPurpose === "Mature") matureVisits++;
+      else if (visitPurpose === "Old") oldVisits++;
+
 
       const dayReading = dayInfos.find(
         (d) => d.createdAt.toISOString().split("T")[0] === visitDate
@@ -94,7 +113,7 @@ export const generateDailyVisitReport = async (req, res) => {
         visit_time: visitTime,  // 👈 Yeh field frontend par dikhane ke liye
         visit_purpose:visitPurpose,
         customer_name: v.customer?.customer_name || "N/A",
-        area: v.customer?.area || "N/A",
+        city: v.customer?.cityDetails?.name || "N/A",
         type: v.customer?.type || "N/A",
         bags_potential: v.customer?.bags_potential || "N/A",
         region : v.customer?.region || "N/A",
@@ -138,10 +157,13 @@ export const generateDailyVisitReport = async (req, res) => {
     const responseData = {
       meta: {
         sales_person: fullname,
-        city: userCity,
+        region: user.region || "N/A",
         from_date: fromDate,
         to_date: toDate,
         total_visits: visits.length,
+        new: newVisits,
+        mature: matureVisits,
+        old: oldVisits,
         designation: designation,
       },
       report: groupedReport,

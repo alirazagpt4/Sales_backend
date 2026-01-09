@@ -1,6 +1,8 @@
-import Customers from '../models/customers.model.js';
+// import Customers from '../models/customers.model.js';
 import { Op } from 'sequelize';
-import City from '../models/City.js';
+// import City from '../models/City.js';
+// import User from '../models/User.js';
+import { Customers, User, City } from '../models/associations.js';
 // console.log("Customers Model in Controller:", Customers);
 
 const createCustomer = async (req ,res) =>{
@@ -9,6 +11,8 @@ const createCustomer = async (req ,res) =>{
 
 
     try{
+
+        const user_id = req.user.id;
 
         const newCustomer = await Customers.create({
             id: id,
@@ -21,7 +25,8 @@ const createCustomer = async (req ,res) =>{
             city_id,city_id,
             latitude: latitude,
             longitude: longitude,
-            region: region
+            region: region,
+            user_id: user_id
         });
 
         if(newCustomer){
@@ -64,7 +69,8 @@ const getAllCustomers = async (req, res) => {
                 [Op.or]: [
                     { customer_name: { [Op.like]: `%${search}%` } },
                     { contact: { [Op.like]: `%${search}%` } },
-                    { area: { [Op.like]: `%${search}%` } }
+                    { area: { [Op.like]: `%${search}%` } },
+                    { '$userDetails.name$': { [Op.like]: `%${search}%` } }
                 ]
             };
         }
@@ -76,6 +82,7 @@ const getAllCustomers = async (req, res) => {
             // Pagination Options
             limit: limit,
             offset: offset,
+            subQuery: false,
             
            
             
@@ -85,7 +92,13 @@ const getAllCustomers = async (req, res) => {
                 as: 'cityDetails', // Wohi alias jo association.js mein Customers model ke liye diya tha
                 attributes: ['name'], // ⚠️ Yahan 'cityName' ya 'name' jo bhi aapki City table mein naam hai
                 required: false // Agar cityId optional hai (NULL ho sakta hai)
-            }], 
+            },
+                {
+                    model: User,
+                    as: 'userDetails', // Jo alias aapne associations mein rakha hai
+                    attributes: ['name'], // Sirf 'name' chahiye humein
+                    required: false // LEFT JOIN karega taake agar user_id null ho tab bhi customer dikhe
+                }], 
         });
 
 
@@ -98,10 +111,12 @@ const getAllCustomers = async (req, res) => {
             ...customer.toJSON(), // Saare existing fields copy karein
             
             // City ka Naam direct field
-            cityName: customer.cityDetails ? customer.cityDetails.name : 'N/A', 
+            cityName: customer.cityDetails ? customer.cityDetails.name : 'N/A',
+            createdBy: customer.userDetails ? customer.userDetails.name : 'System', 
             
             // customer.cityDetails object ko response se hata dein agar zaroori ho
-            cityDetails: undefined 
+            cityDetails: undefined,
+            userDetails: undefined 
         }));
 
         // 5. Response mein Data aur Pagination Metadata bhejna

@@ -49,4 +49,7 @@ Customers.belongsTo(User,{
 })
 
 
-export { User, Customers, Visits, Startday , City};
+// export { User, Customers, Visits, Startday , City};
+const models = { User, Customers, Visits, Startday, City };
+export { User, Customers, Visits, Startday, City };
+export default models;
