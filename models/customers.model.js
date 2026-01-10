@@ -45,6 +45,18 @@ const Customers = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: true,
     },
+    district: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    division: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    province: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     region: {
       type: DataTypes.STRING,
       allowNull: true,

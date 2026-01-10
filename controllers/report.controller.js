@@ -63,7 +63,7 @@ export const generateDailyVisitReport = async (req, res) => {
       include: [
         {
           model: Customers,
-          attributes: ["customer_name", "area", "type" , "bags_potential" , "region"],
+          attributes: ["customer_name", "tehsil", "type" , "bags_potential" , "region"],
           as: "customer",
           // 🚀 Yeh nested include missing tha, jiski wajah se 'name' undefined ho raha tha
           include: [
@@ -115,6 +115,7 @@ export const generateDailyVisitReport = async (req, res) => {
         customer_name: v.customer?.customer_name || "N/A",
         city: v.customer?.cityDetails?.name || "N/A",
         type: v.customer?.type || "N/A",
+        tehsil: v.customer?.tehsil || "N/A",
         bags_potential: v.customer?.bags_potential || "N/A",
         region : v.customer?.region || "N/A",
         status: v.is_completed ? "OK" : "Yes",
