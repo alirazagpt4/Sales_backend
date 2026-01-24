@@ -200,11 +200,7 @@ export const generateSummaryReport = async (req, res) => {
           [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`],
         },
       },
-<<<<<<< HEAD
       attributes: ["id", "purpose", "createdAt", "user_id"], // ðŸ‘ˆ user_id confirmed
-=======
-      attributes: ["id", "purpose", "createdAt", "user_id"], // 👈 user_id confirmed
->>>>>>> 02e6b2b03e9a0807786a1d878554213a80f79503
     });
 
     // 3. Startday fetch karein (Image ke mutabiq yahan 'userId' hai)
@@ -214,11 +210,7 @@ export const generateSummaryReport = async (req, res) => {
           [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`],
         },
       },
-<<<<<<< HEAD
       attributes: ["id", "startReading", "createdAt", "userId"], // ðŸ‘ˆ userId confirmed
-=======
-      attributes: ["id", "startReading", "createdAt", "userId"], // 👈 userId confirmed
->>>>>>> 02e6b2b03e9a0807786a1d878554213a80f79503
     });
 
     const dateGroups = {};
