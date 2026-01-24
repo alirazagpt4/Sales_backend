@@ -65,7 +65,7 @@ export const generateDailyVisitReport = async (req, res) => {
           model: Customers,
           attributes: ["customer_name", "tehsil", "type" , "bags_potential" , "region"],
           as: "customer",
-          // 🚀 Yeh nested include missing tha, jiski wajah se 'name' undefined ho raha tha
+          // ðŸš€ Yeh nested include missing tha, jiski wajah se 'name' undefined ho raha tha
           include: [
             {
               model: City,
@@ -80,12 +80,12 @@ export const generateDailyVisitReport = async (req, res) => {
     });
 
 
-    // --- 🟢 COUNTERS (Based on Visit Purpose) ---
+    // --- ðŸŸ¢ COUNTERS (Based on Visit Purpose) ---
     let newVisits = 0;
     let matureVisits = 0;
     let oldVisits = 0;
 
-    // --- 🟢 STEP 1: Pehle flat data map karein ---
+    // --- ðŸŸ¢ STEP 1: Pehle flat data map karein ---
     const flatData = visits.map((v) => {
       const visitDate = v.createdAt.toISOString().split("T")[0];
 
@@ -110,7 +110,7 @@ export const generateDailyVisitReport = async (req, res) => {
       return {
         date: visitDate,
         createdAt: v.createdAt, // Original timestamp for sorting if needed
-        visit_time: visitTime,  // 👈 Yeh field frontend par dikhane ke liye
+        visit_time: visitTime,  // ðŸ‘ˆ Yeh field frontend par dikhane ke liye
         visit_purpose:visitPurpose,
         customer_name: v.customer?.customer_name || "N/A",
         city: v.customer?.cityDetails?.name || "N/A",
@@ -132,7 +132,7 @@ export const generateDailyVisitReport = async (req, res) => {
       };
     });
 
-    // --- 🟢 STEP 2: Ab Data ko GROUP karein (RowSpan ke liye zaroori) ---
+    // --- ðŸŸ¢ STEP 2: Ab Data ko GROUP karein (RowSpan ke liye zaroori) ---
     const groupedReport = [];
     flatData.forEach((item) => {
       // Check karein kya is date ka group pehle se hai?
@@ -173,6 +173,139 @@ export const generateDailyVisitReport = async (req, res) => {
     return res.status(200).json(responseData);
   } catch (error) {
     console.error("API Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+
+
+
+export const generateSummaryReport = async (req, res) => {
+  try {
+    const { fromDate, toDate } = req.query;
+
+    if (!fromDate || !toDate) {
+      return res.status(400).json({ error: "From Date and To Date are required" });
+    }
+
+    // 1. Saare Users fetch karein
+    const allUsers = await User.findAll({
+      attributes: ["id", "fullname", "name"],
+    });
+
+    // 2. Visits fetch karein (Aapne bataya yahan 'user_id' hai)
+    const visits = await Visits.findAll({
+      where: {
+        createdAt: {
+          [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`],
+        },
+      },
+      attributes: ["id", "purpose", "createdAt", "user_id"], // ðŸ‘ˆ user_id confirmed
+    });
+
+    // 3. Startday fetch karein (Image ke mutabiq yahan 'userId' hai)
+    const dayInfos = await Startday.findAll({
+      where: {
+        createdAt: {
+          [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`],
+        },
+      },
+      attributes: ["id", "startReading", "createdAt", "userId"], // ðŸ‘ˆ userId confirmed
+    });
+
+    const dateGroups = {};
+
+    // --- LOGIC: Startday (Meter Readings) Map karein ---
+    dayInfos.forEach((d) => {
+      const date = d.createdAt.toISOString().split("T")[0];
+      const uId = d.userId; // Startday wala column
+      
+      const userObj = allUsers.find(u => u.id === uId);
+      const userName = userObj?.fullname || userObj?.name || "N/A";
+
+      if (!dateGroups[date]) dateGroups[date] = {};
+      
+      dateGroups[date][uId] = {
+        sales_person: userName,
+        total_visits: 0,
+        regular_visit: 0,
+        followup_visit: 0,
+        mature_order: 0,
+        meter_reading: d.startReading || "N/A",
+      };
+    });
+
+    // --- LOGIC: Visits ka data map mein add karein ---
+    visits.forEach((v) => {
+      const date = v.createdAt.toISOString().split("T")[0];
+      const uId = v.user_id; // Visits wala column
+
+      if (!dateGroups[date]) dateGroups[date] = {};
+      if (!dateGroups[date][uId]) {
+        const userObj = allUsers.find(u => u.id === uId);
+        dateGroups[date][uId] = {
+          sales_person: userObj?.fullname || userObj?.name || "N/A",
+          total_visits: 0,
+          regular_visit: 0,
+          followup_visit: 0,
+          mature_order: 0,
+          meter_reading: "N/A",
+        };
+      }
+
+      const row = dateGroups[date][uId];
+      row.total_visits++;
+
+      if (v.purpose === "Old") row.regular_visit++;
+      else if (v.purpose === "New") row.followup_visit++;
+      else if (v.purpose === "Mature") row.mature_order++;
+    });
+
+    // --- STEP 3: Formatting & Summation (Excel Style) ---
+    const finalReport = [];
+    let grandVisits = 0, grandReg = 0, grandFol = 0, grandMat = 0;
+    const uniqueSalesPersons = new Set();
+
+    Object.keys(dateGroups).sort().forEach((date) => {
+      const personsData = Object.values(dateGroups[date]);
+      let dVisits = 0, dReg = 0, dFol = 0, dMat = 0;
+
+      personsData.forEach(p => {
+        dVisits += p.total_visits;
+        dReg += p.regular_visit;
+        dFol += p.followup_visit;
+        dMat += p.mature_order;
+        uniqueSalesPersons.add(p.sales_person);
+      });
+
+      finalReport.push({
+        visit_date: date,
+        data: personsData,
+        date_summary: {
+          total_persons: personsData.length,
+          total_visits: dVisits,
+          regular: dReg,
+          followup: dFol,
+          mature: dMat
+        }
+      });
+
+      grandVisits += dVisits; grandReg += dReg; grandFol += dFol; grandMat += dMat;
+    });
+
+    return res.status(200).json({
+      report: finalReport,
+      grand_summary: {
+        total_sales_persons: uniqueSalesPersons.size,
+        total_visits: grandVisits,
+        total_regular: grandReg,
+        total_followup: grandFol,
+        total_mature: grandMat
+      }
+    });
+
+  } catch (error) {
+    console.error("Summary API Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
