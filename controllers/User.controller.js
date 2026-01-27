@@ -139,7 +139,8 @@ export const loginAdmin = async (req , res) =>{
 
     const username = user.name;
     const fullname = user.fullname;
-    console.log("username and full name ..." ,username , fullname);
+    const userRole = user.role;
+    console.log("username and full name ..." ,username , fullname , userRole);
 
     // 3. Admin user ke liye JWT generate karein
     const token = jwt.sign(
@@ -148,7 +149,7 @@ export const loginAdmin = async (req , res) =>{
         { expiresIn: '1d' }
     );
     
-    res.json({ token , username , fullname});
+    res.json({ token , username , fullname , userRole});
 };
 
 

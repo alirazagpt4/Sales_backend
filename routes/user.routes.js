@@ -5,7 +5,7 @@ import { authenticateToken, isAdmin, isSuperAdmin } from "../Middlewares/authMid
 import { createUser , loginUser , loginAdmin, getAllUsers, updateUser, deleteUser, viewUser } from "../controllers/User.controller.js";
 
 // Route to create a new user
-router.post('/register' ,authenticateToken , isAdmin, createUser);
+router.post('/register' ,authenticateToken ,  createUser);
 
 // Route to login user
 router.post('/login' , loginUser);
