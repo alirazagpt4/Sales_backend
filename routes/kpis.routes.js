@@ -3,6 +3,6 @@ import express from 'express';
 import { authenticateToken, isAdmin } from '../Middlewares/authMiddleware.js';
 const router = express.Router();
 
-router.get('/kpis' , authenticateToken , isAdmin , kpis);
+router.get('/kpis' , authenticateToken , kpis);
 
 export default router;

@@ -30,3 +30,11 @@ export const isAdmin = (req, res, next) => {
     }   
 }
 
+// 2. Yeh middleware sirf Delete/Edit ke liye (Sirf SuperAdmin)
+export const isSuperAdmin = (req, res, next) => {
+    if (req.user && req.user.role === "superadmin") {
+        next();
+    } else {
+        return res.status(403).json({ error: "Access denied. SuperAdmin privileges required." });
+    }   
+}

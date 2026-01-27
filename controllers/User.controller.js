@@ -132,7 +132,7 @@ export const loginAdmin = async (req , res) =>{
     }
 
     // 2. CHECK: Ensure user ka role 'admin' hai
-    if (user.role !== 'admin') {
+    if (user.role !== 'admin' && user.role !== 'superadmin') {
         // Agar user exist karta hai, lekin admin nahi hai
         return res.status(403).json({ message: 'Access denied: Not an administrator' });
     }

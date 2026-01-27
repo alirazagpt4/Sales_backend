@@ -1,6 +1,6 @@
 import express from "express";
 const router = express.Router();
-import { authenticateToken, isAdmin } from "../Middlewares/authMiddleware.js";
+import { authenticateToken, isAdmin, isSuperAdmin } from "../Middlewares/authMiddleware.js";
 
 import { createUser , loginUser , loginAdmin, getAllUsers, updateUser, deleteUser, viewUser } from "../controllers/User.controller.js";
 
@@ -14,17 +14,17 @@ router.post('/login' , loginUser);
 // Admin login 
 router.post('/admin/login', loginAdmin);
 
-router.get('/' , authenticateToken , isAdmin , getAllUsers);
+router.get('/' , authenticateToken , getAllUsers);
 
 
 
 
 router.get('/:id' , authenticateToken , isAdmin , viewUser);
 
-router.patch('/:id' , authenticateToken , isAdmin , updateUser);
+router.patch('/:id' , authenticateToken , isSuperAdmin , updateUser);
 
 
-router.delete('/:id' , authenticateToken , isAdmin , deleteUser);
+router.delete('/:id' , authenticateToken , isSuperAdmin , deleteUser);
 // Protected route example
 router.get('/protected' , authenticateToken , (req , res) =>{
     res.json({
