@@ -16,6 +16,7 @@ import reportsRoutes from './routes/report.routes.js';
 import './models/associations.js';
 import citiesRoutes from './routes/cities.routes.js';
 import itemsRoutes from './routes/items.routes.js';
+import saleOrderRoutes from './routes/sale.order.routes.js';
 import path from 'path';
 
 
@@ -44,6 +45,7 @@ app.use('/api' , kpisRoutes);
 app.use('/api',reportsRoutes);
 app.use('/api/cities' , citiesRoutes);
 app.use('/api/items', itemsRoutes);
+app.use('/api/sale-orders', saleOrderRoutes);
 
 
 
