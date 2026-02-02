@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import Item from "../models/items.model.js";
 
 // Create a new item
@@ -37,13 +38,25 @@ export const getAllItems = async (req, res) => {
     // 1. Query parameters se page aur size uthao (Default values set kar lo)
     const page = parseInt(req.query.page) || 1;
     const size = parseInt(req.query.size) || 10;
+    const search = req.query.search || "";
 
     // 2. Logic: Page 1 ka offset 0 hoga, Page 2 ka offset 10 hoga (agar size 10 hai)
     const limit = size;
     const offset = (page - 1) * size;
 
+    let whereCondition = {};
+    if (search) {
+      whereCondition = {
+        [Op.or]: [
+          { item_code: { [Op.like]: `%${search}%` } },
+          { item_name: { [Op.like]: `%${search}%` } }
+        ]
+      };
+    }
+
     // 3. findAndCountAll use karein taake total items ka bhi pata chale
     const { count, rows } = await Item.findAndCountAll({
+      where: whereCondition,
       limit: limit,
       offset: offset,
       order: [['createdAt', 'DESC']] // Latest items pehle nazar aayenge
