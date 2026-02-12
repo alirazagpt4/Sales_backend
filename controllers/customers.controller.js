@@ -5,14 +5,37 @@ import { Op } from 'sequelize';
 import { Customers, User, City } from '../models/associations.js';
 // console.log("Customers Model in Controller:", Customers);
 
-const createCustomer = async (req ,res) =>{
+const createCustomer = async (req, res) => {
 
-    const { id , customer_name, contact, area, tehsil, bags_potential, type , city_id  , latitude, longitude, district , division , province , region} = req.body;
+    const { id, customer_name, contact, area, tehsil, bags_potential, type, city_id, latitude, longitude, district, division, province, region } = req.body;
 
 
-    try{
+    try {
 
         const user_id = req.user.id;
+
+        const existingCustomer = await Customers.findOne({ where: { contact: contact } });
+
+        
+        
+        if (existingCustomer) {
+        
+           // CHECK: Agar banane wala wahi purana banda hi hai
+            if (existingCustomer.user_id === user_id) {
+                return res.status(400).json({ 
+                    error: "You Already Own This Customer , Check your Existing Customer List" 
+                });
+            }
+        
+        
+            // 2. Agar mil gaya toh naya record nahi banana, sirf user_id override karni hai
+            await existingCustomer.update({ user_id: user_id });
+
+            return res.status(200).json({
+                message: "Customer already existed, ownership updated.",
+                customer: existingCustomer
+            });
+        }
 
         const newCustomer = await Customers.create({
             id: id,
@@ -22,30 +45,30 @@ const createCustomer = async (req ,res) =>{
             tehsil: tehsil,
             bags_potential: bags_potential,
             type: type,
-            city_id,city_id,
+            city_id, city_id,
             latitude: latitude,
             longitude: longitude,
-            district:district,
-            division:division,
-            province:province,
+            district: district,
+            division: division,
+            province: province,
             region: region,
             user_id: user_id
         });
 
-        if(newCustomer){
+        if (newCustomer) {
             res.status(201).json({
                 message: "Customer created successfully",
                 customer: newCustomer
             });
-        }else{
+        } else {
             res.status(400).json({
-                error: "Failed to create customer"  
-        }
-           
-        );
+                error: "Failed to create customer"
+            }
+
+            );
         }
 
-    }catch(error){
+    } catch (error) {
         console.error("Error creating customer:", error);
         res.status(500).json({ error: "Internal server error" });
     }
@@ -59,7 +82,7 @@ const getAllCustomers = async (req, res) => {
         // 1. Pagination Parameters nikalna
         const page = parseInt(req.query.page) || 1; // Default page 1
         const limit = parseInt(req.query.limit) || 10; // Default limit 10 records
-        
+
         // 2. Offset calculate karna
         const offset = (page - 1) * limit;
 
@@ -81,14 +104,14 @@ const getAllCustomers = async (req, res) => {
         // 3. Sequelize.findAndCountAll ka istemaal karein
         const { count, rows: customers } = await Customers.findAndCountAll({
             where: whereCondition,
-            
+
             // Pagination Options
             limit: limit,
             offset: offset,
             subQuery: false,
-            
-           
-            
+
+
+
             // 🚀 CHANGE 1: City association ko include karein
             include: [{
                 model: City, // Aapki City Model
@@ -96,30 +119,30 @@ const getAllCustomers = async (req, res) => {
                 attributes: ['name'], // ⚠️ Yahan 'cityName' ya 'name' jo bhi aapki City table mein naam hai
                 required: false // Agar cityId optional hai (NULL ho sakta hai)
             },
-                {
-                    model: User,
-                    as: 'userDetails', // Jo alias aapne associations mein rakha hai
-                    attributes: ['name'], // Sirf 'name' chahiye humein
-                    required: false // LEFT JOIN karega taake agar user_id null ho tab bhi customer dikhe
-                }], 
+            {
+                model: User,
+                as: 'userDetails', // Jo alias aapne associations mein rakha hai
+                attributes: ['name'], // Sirf 'name' chahiye humein
+                required: false // LEFT JOIN karega taake agar user_id null ho tab bhi customer dikhe
+            }],
         });
 
 
-        
+
         // 4. Total Pages calculate karna
         const totalPages = Math.ceil(count / limit);
 
 
         const formattedCustomers = customers.map(customer => ({
             ...customer.toJSON(), // Saare existing fields copy karein
-            
+
             // City ka Naam direct field
             cityName: customer.cityDetails ? customer.cityDetails.name : 'N/A',
-            createdBy: customer.userDetails ? customer.userDetails.name : 'System', 
-            
+            createdBy: customer.userDetails ? customer.userDetails.name : 'System',
+
             // customer.cityDetails object ko response se hata dein agar zaroori ho
             cityDetails: undefined,
-            userDetails: undefined 
+            userDetails: undefined
         }));
 
         // 5. Response mein Data aur Pagination Metadata bhejna
@@ -132,7 +155,7 @@ const getAllCustomers = async (req, res) => {
                 itemsPerPage: limit,
             },
         });
-        
+
     } catch (error) {
         console.error("Error fetching customers:", error);
         res.status(500).json({ error: "Internal server error" });
@@ -141,23 +164,23 @@ const getAllCustomers = async (req, res) => {
 
 
 
-const getAllCustomersByCity = async (req , res) =>{
+const getAllCustomersByCity = async (req, res) => {
     const user = req.user;
     try {
         const userCityId = user.city_id;
         const loggedInUserId = user.id;
-        
-        
+
+
         const customers = await Customers.findAll({
             where: {
                 city_id: userCityId,
-                 user_id: loggedInUserId
+                user_id: loggedInUserId
 
             },
             // 🛑 OPTIONAL: Agar aap sirf kuch specific fields chahte hain toh 'attributes' use karein
             attributes: [
-                'id', 
-                'customer_name', 
+                'id',
+                'customer_name',
                 'contact', // ✅ Contact field zaroor include karein
                 'area',
                 'tehsil',
@@ -168,11 +191,11 @@ const getAllCustomersByCity = async (req , res) =>{
                 'longitude',
                 // Aapke Customer Model ke baaki zaroori fields yahan add karein
             ],
-            order: [['customer_name', 'ASC']], 
+            order: [['customer_name', 'ASC']],
         });
 
         // 🛑 Frontend Ko Jawab: response.data.customers mein contact available hoga
-        return res.status(200).json({ 
+        return res.status(200).json({
             customers: customers,
         });
 
@@ -210,7 +233,7 @@ const updateCustomerById = async (req, res) => {
 
     try {
         const customer = await Customers.findByPk(customerId);
-        console.log("customer id " , customer)
+        console.log("customer id ", customer)
 
         if (!customer) {
             return res.status(404).json({ message: "Customer not found" });
@@ -221,30 +244,30 @@ const updateCustomerById = async (req, res) => {
             where: { id: customerId }
         });
 
-        if(updatedRowsCount > 0){
-            const updatedCustomer = await Customers.findByPk( customerId);
+        if (updatedRowsCount > 0) {
+            const updatedCustomer = await Customers.findByPk(customerId);
             return res.status(200).json({
-                "message":"Updated Customer Succesfully",
+                "message": "Updated Customer Succesfully",
                 "customer": updatedCustomer
             });
         }
-        else{
+        else {
             // Agar customer mil gaya tha, lekin koi data change nahi hua (updatedRowsCount === 0)
             // Toh 200 OK message bhejna chahiye, 400 nahi.
             return res.status(200).json({ message: "No changes made to customer" });
         }
 
 
-        
-    }catch (error) {
+
+    } catch (error) {
         // ... (Aapka detailed error handling code yahan hai)
-        console.error("--- DETAILED UPDATE ERROR ---:", error); 
-        
+        console.error("--- DETAILED UPDATE ERROR ---:", error);
+
         let statusCode = (error.name === 'SequelizeUniqueConstraintError' || error.name === 'SequelizeValidationError') ? 400 : 500;
 
-        res.status(statusCode).json({ 
+        res.status(statusCode).json({
             message: "Update failed due to bad data or constraint issue.",
-            details: error.message 
+            details: error.message
         });
     }
 
@@ -264,7 +287,7 @@ const deleteCustomerById = async (req, res) => {
             where: { id: customerId }
         });
 
-        console.log("deletedRows" , deletedRows);
+        console.log("deletedRows", deletedRows);
         if (deletedRows) {
             res.status(200).json({ message: "Customer deleted successfully" });
         }
@@ -285,4 +308,4 @@ const deleteCustomerById = async (req, res) => {
 
 
 
-export { createCustomer, getAllCustomers  , getCustomerById , updateCustomerById, deleteCustomerById  , getAllCustomersByCity};  
+export { createCustomer, getAllCustomers, getCustomerById, updateCustomerById, deleteCustomerById, getAllCustomersByCity };  
