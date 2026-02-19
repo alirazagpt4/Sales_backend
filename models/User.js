@@ -65,20 +65,24 @@ const User = sequelize.define("User", {
     unique: true,
   },
 
-  // 🚀 Nayi Fields yahan add ho rahi hain
-  // district: {
-  //   type: DataTypes.STRING,
-  //   allowNull: true,
-  // },
-  // division: {
-  //   type: DataTypes.STRING,
-  //   allowNull: true,
-  // },
-  // province: {
-  //   type: DataTypes.STRING,
-  //   allowNull: true,
-  // },
 
+  // 🚀 Nayi Fields (Linking ke liye)
+  designationId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'Designations',
+      key: 'id',
+    }
+  },
+  reportTo: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'Users',
+      key: 'id',
+    }
+  },
 
   region: {
     type: DataTypes.STRING,

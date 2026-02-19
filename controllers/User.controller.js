@@ -4,29 +4,30 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { Op } from 'sequelize';
 import City from '../models/City.js';
+import Designation from '../models/designations.model.js';
 dotenv.config();
 
 
 export const createUser = async (req, res) => {
     try {
-        const { name  , password , role , city_id , designation , fullname , mobile_ph , whatsapp_ph , region} = req.body;
+        const { name, password, role, city_id, designation, designationId, reportTo, fullname, mobile_ph, whatsapp_ph, region } = req.body;
 
-        console.log("body :::",req.body);
+        console.log("body :::", req.body);
 
         // Validation checks
-        if(!name ||   !password || !city_id || !designation ||   !fullname || !mobile_ph ||  !whatsapp_ph || !region){
+        if (!name || !password || !city_id || !designation || !designationId || !fullname || !mobile_ph || !whatsapp_ph || !region) {
             return res.status(400).json({ error: 'all fields are required are required.' });
         }
 
         // Check if user already exists
-        const existingUser = await User.findOne({ where: { name}});
+        const existingUser = await User.findOne({ where: { name } });
 
-        if(existingUser){
+        if (existingUser) {
             return res.status(409).json({ error: 'User with this name already exists.' });
         }
 
         // Hash the password
-        const hashedPassword = await bcrypt.hash(password , 10);
+        const hashedPassword = await bcrypt.hash(password, 10);
 
 
         // Create new user
@@ -36,6 +37,8 @@ export const createUser = async (req, res) => {
             role,
             city_id,
             designation,
+            designationId,
+            reportTo,
             fullname,
             mobile_ph,
             whatsapp_ph,
@@ -44,39 +47,39 @@ export const createUser = async (req, res) => {
 
 
 
-        res.status(201).json({ message: 'User created successfully'});
+        res.status(201).json({ message: 'User created successfully' });
 
     }
-    catch (err){
+    catch (err) {
         console.error('Error creating user:', err);
         res.status(500).json({ error: 'Internal server error' });
     }
 }
 
 
-export const loginUser = async (req , res) =>{
-    try{
-        const { name , password} = req.body;
-        
+export const loginUser = async (req, res) => {
+    try {
+        const { name, password } = req.body;
+
         // Validation checks
-        if(!name || !password){
+        if (!name || !password) {
             return res.status(400).json({ error: 'Name and password are required.' });
         }
 
-        console.log("login req body . . .  .. . . . . . . . . . . . . . in login request  " , req.body);
+        console.log("login req body . . .  .. . . . . . . . . . . . . . in login request  ", req.body);
 
 
         // find user by email
-        const user = await User.findOne({ where: { name }});
+        const user = await User.findOne({ where: { name } });
 
-        if(!user){
+        if (!user) {
             return res.status(401).json({ error: 'Invalid name or password.' });
         }
 
         // compare password
-        const isPasswordValid = await bcrypt.compare(password , user.password);
+        const isPasswordValid = await bcrypt.compare(password, user.password);
 
-        if(!isPasswordValid){
+        if (!isPasswordValid) {
             return res.status(401).json({ error: 'Invalid name or password.' });
         }
 
@@ -89,7 +92,7 @@ export const loginUser = async (req , res) =>{
 
         // generate JWT token
         const token = jwt.sign(
-            { id: user.id, email: user.email, role: user.role , name:user.name , city_id:user.city_id },
+            { id: user.id, email: user.email, role: user.role, name: user.name, city_id: user.city_id },
             process.env.JWT_SECRET,
         );
 
@@ -99,13 +102,15 @@ export const loginUser = async (req , res) =>{
         res.status(200).json({
             message: 'Login successful',
             token,
-            user:{
+            user: {
                 id: user.id,
                 name: user.name,
                 email: user.email,
                 role: user.role,
-                city_id:user.city_id,
-                fullname:user.fullname,
+                city_id: user.city_id,
+                fullname: user.fullname,
+                designationId: user.designationId,
+
 
             }
         });
@@ -113,7 +118,7 @@ export const loginUser = async (req , res) =>{
 
 
     }
-    catch(err){
+    catch (err) {
         console.error('Error logging in user:', err);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -122,10 +127,10 @@ export const loginUser = async (req , res) =>{
 
 
 // Admin login
-export const loginAdmin = async (req , res) =>{
-   
+export const loginAdmin = async (req, res) => {
+
     const { name, password } = req.body;
-    
+
     // 1. User ko email se dhoondhein
     const user = await User.findOne({ where: { name } });
 
@@ -142,16 +147,16 @@ export const loginAdmin = async (req , res) =>{
     const username = user.name;
     const fullname = user.fullname;
     const userRole = user.role;
-    console.log("username and full name ..." ,username , fullname , userRole);
+    console.log("username and full name ...", username, fullname, userRole);
 
     // 3. Admin user ke liye JWT generate karein
     const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role }, 
-        process.env.JWT_SECRET, 
+        { id: user.id, email: user.email, role: user.role },
+        process.env.JWT_SECRET,
         { expiresIn: '1d' }
     );
-    
-    res.json({ token , username , fullname , userRole});
+
+    res.json({ token, username, fullname, userRole });
 };
 
 
@@ -182,13 +187,31 @@ export const getAllUsers = async (req, res) => {
             where: whereClause,
             limit: limit,
             offset: offset,
-            attributes: ['id', 'name', 'email', 'role', 'createdAt','designation' , 'city_id' , 'fullname' , 'mobile_ph' , 'whatsapp_ph' , 'region'], // Exclude password
+            attributes: ['id', 'name', 'email', 'role', 'createdAt', 'designation', 'city_id', 'fullname', 'mobile_ph', 'whatsapp_ph', 'region', 'designationId', 'reportTo'], // Exclude password
             include: [{
                 model: City, // Ya models.City (jo bhi import kiya ho)
                 as: 'cityDetails', // Wohi alias jo association.js mein diya tha
                 attributes: ['name'], // Sirf City ka Naam chahiye
                 required: false // Left join use hoga
-            }],      
+            },
+            {
+                model: Designation,
+                attributes: ['id', 'designation'],
+                as: 'designationDetails',
+                required: false
+            },
+            {
+                model: User,
+                as: 'manager',
+                attributes: ['id', 'name'],
+                required: false
+            },
+            {
+                model: User,
+                as: 'subordinates',
+                attributes: ['id', 'name'],
+                required: false
+            }],
         });
 
 
@@ -202,15 +225,19 @@ export const getAllUsers = async (req, res) => {
             createdAt: user.createdAt,
             designation: user.designation,
             fullname: user.fullname,
-            mobile_ph:user.mobile_ph,
-            whatsapp_ph:user.mobile_ph,
-            region:user.region,
-            
+            mobile_ph: user.mobile_ph,
+            whatsapp_ph: user.mobile_ph,
+            region: user.region,
+
             // 🔑 City ka Naam direct field
-            cityName: user.cityDetails ? user.cityDetails.name : 'N/A', 
-            
+            cityName: user.cityDetails ? user.cityDetails.name : 'N/A',
+
             // Agar phir bhi ID chahiye to yahan rakh sakte hain
-            city_id: user.city_id 
+            city_id: user.city_id,
+            designationId: user.designationId,
+            designationDetails: user.designationDetails,
+            manager: user.manager,
+            subordinates: user.subordinates
         }));
         //
 
@@ -228,7 +255,7 @@ export const getAllUsers = async (req, res) => {
 }
 
 
-export const viewUser = async (req , res) =>{
+export const viewUser = async (req, res) => {
     try {
         const { id } = req.params; // ID ko URL parameters se nikalna (e.g., /users/5)
 
@@ -236,25 +263,43 @@ export const viewUser = async (req , res) =>{
         const user = await User.findByPk(id, {
             // 🔑 Naye fields ke saath attributes define karein
             attributes: [
-                'id', 
-                'name', 
-                'email', 
-                'role', 
+                'id',
+                'name',
+                'email',
+                'role',
                 'createdAt',
-                'designation',  
+                'designation',
                 'last_login',
                 'fullname',
                 'mobile_ph',
                 'whatsapp_ph',
                 'region', // Agar aapne yeh field add kiya tha
             ],
-            
+
             // 🔑 City ka Naam laane ke liye include/association use karein
             include: [{
-                model: City, 
+                model: City,
                 as: 'cityDetails', // Wohi alias jo association.js mein diya tha
-                attributes: ['name'], 
+                attributes: ['name'],
                 required: false // Agar City ID null ho to crash na ho
+            },
+            {
+                model: Designation,
+                attributes: ['id', 'designation'],
+                as: 'designationDetails',
+                required: false
+            },
+            {
+                model: User,
+                as: 'manager',
+                attributes: ['id', 'name', 'fullname'],
+                required: false
+            },
+            {
+                model: User,
+                as: 'subordinates',
+                attributes: ['id', 'name', 'fullname'],
+                required: false
             }],
         });
 
@@ -265,17 +310,23 @@ export const viewUser = async (req , res) =>{
 
         // 🔑 Data ko Flatten karna (City Name ko direct field banana)
         // User object ko simple JSON mein convert karein
-        const userData = user.toJSON(); 
-        
+        const userData = user.toJSON();
+
         // City ka Naam nikal kar direct field bana dein
         const formattedUser = {
             ...userData,
             cityName: userData.cityDetails ? userData.cityDetails.name : 'N/A',
             city_id: userData.city_id, // City ID bhi rakh sakte hain
+            designationDetails: userData.designationDetails,
+            manager: userData.manager,
+            subordinates: userData.subordinates
         };
-        
+
         // Association object ko final response se hata dein (clean-up)
         delete formattedUser.cityDetails;
+        delete formattedUser.designationDetails;
+        delete formattedUser.manager;
+        delete formattedUser.subordinates;
 
 
         res.status(200).json({
@@ -287,16 +338,16 @@ export const viewUser = async (req , res) =>{
         console.error(`Error fetching user ID ${req.params.id}:`, err);
         res.status(500).json({ error: 'Internal server error' });
     }
-} 
+}
 
 
 
 export const updateUser = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, email, password, role , city_id , designation , fullname , mobile_ph , whatsapp_ph , region} = req.body;
+        const { name, email, password, role, city_id, designation, designationId, fullname, mobile_ph, whatsapp_ph, region, reportTo } = req.body;
 
-        console.log("update ''''''''' user data" , req.body);
+        console.log("update ''''''''' user data", req.body);
         const user = await User.findByPk(id);
 
         if (!user) {
@@ -314,12 +365,14 @@ export const updateUser = async (req, res) => {
             updateData.password = await bcrypt.hash(password, 10);
         }
 
-        if(city_id) updateData.city_id = city_id;
-        if(designation) updateData.designation = designation;
-        if(fullname) updateData.fullname = fullname;
-        if(mobile_ph) updateData.mobile_ph = mobile_ph;
-        if(whatsapp_ph) updateData.whatsapp_ph = whatsapp_ph;
-        if(region) updateData.region = region;
+        if (city_id) updateData.city_id = city_id;
+        if (designation) updateData.designation = designation;
+        if (fullname) updateData.fullname = fullname;
+        if (mobile_ph) updateData.mobile_ph = mobile_ph;
+        if (whatsapp_ph) updateData.whatsapp_ph = whatsapp_ph;
+        if (region) updateData.region = region;
+        if (designationId) updateData.designationId = designationId;
+        if (reportTo) updateData.reportTo = reportTo;
 
         await user.update(updateData);
 
