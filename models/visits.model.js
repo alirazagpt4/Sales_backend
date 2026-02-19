@@ -19,6 +19,7 @@ const Visits = sequelize.define('Visits', {
     user_id: {
         type: DataTypes.INTEGER, // Ensure this matches the type of User's primary key
         allowNull: false,
+        field: 'user_id'
     },
 
     // --- Core Visit Data ---

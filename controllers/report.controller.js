@@ -309,3 +309,103 @@ export const generateSummaryReport = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
+
+// Isko controller file mein add karein
+export const generateMyReport = async (req, res) => {
+  try {
+    // 🚨 Authentication middleware se userId aye gi (req.user.id)
+    // Query se sirf dates lenge
+    const { fromDate, toDate } = req.query;
+    const user_id = req.user.id; // Login bande ki ID
+
+    if (!fromDate || !toDate) {
+      return res.status(400).json({ error: "From Date and To Date are required" });
+    }
+
+    // 1. User ki basic info (for header)
+    const user = await User.findByPk(user_id, {
+        attributes: ['fullname', 'designation', 'region']
+    });
+
+  // 2. Startday Info (Meter Readings)
+    const dayInfos = await Startday.findAll({
+      where: {
+        userId: user_id, // Database mein 'userId' hai
+        createdAt: { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] },
+      },
+      // 👈 Attributes specify kar diye taake faltu 'user_id' na mangwaye
+      attributes: [
+        "id", 
+        "userId", 
+        "startReading", 
+        "photoUri", 
+        "createdAt", 
+        "location_latitude", 
+        "location_longitude"
+      ], 
+    });
+
+    // 3. Visits with Customers & City Details
+    const visits = await Visits.findAll({
+      where: {
+        user_id: user_id, // Database mein 'user_id' hai
+        createdAt: { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] },
+      },
+      // 👈 Idhar bhi attributes lock kar diye panga khatam karne ke liye
+      attributes: ["id", "user_id", "customer_id", "purpose", "createdAt", "latitude", "longitude"],
+      include: [
+        {
+          model: Customers,
+          as: "customer",
+          attributes: ["customer_name", "type", "bags_potential"],
+          include: [{ model: City, as: "cityDetails", attributes: ["name"] }]
+        },
+      ],
+      order: [["createdAt", "ASC"]],
+    });
+
+    // --- STEP: Grouping Logic (Mobile Layout ke liye) ---
+    const groupedReport = [];
+
+    // Saari unique dates nikalne ke liye
+    const dates = [...new Set(visits.map(v => v.createdAt.toISOString().split('T')[0]))];
+
+    dates.forEach(date => {
+      // Is din ki meter reading dhoondo
+      const dayEntry = dayInfos.find(d => d.createdAt.toISOString().split('T')[0] === date);
+      
+      // Is din ki saari visits filter karo
+      const dayVisits = visits.filter(v => v.createdAt.toISOString().split('T')[0] === date).map(v => ({
+        time: v.createdAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+        type: v.customer?.type || "N/A",
+        purpose: v.purpose || "Regular",
+        customer_name: v.customer?.customer_name || "N/A",
+        city: v.customer?.cityDetails?.name || "N/A",
+        bags: v.customer?.bags_potential || 0
+      }));
+
+      groupedReport.push({
+        date: date,
+        day_start_time: dayEntry ? dayEntry.createdAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "N/A",
+        meter_reading: dayEntry?.startReading || "N/A",
+        activities: dayVisits
+      });
+    });
+
+    return res.status(200).json({
+      success: true,
+      meta: {
+        name: user.fullname,
+        designation: user.designation,
+        region: user.region
+      },
+      report: groupedReport
+    });
+
+  } catch (error) {
+    console.error("My Report API Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};

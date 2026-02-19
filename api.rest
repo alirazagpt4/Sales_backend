@@ -1,0 +1,15 @@
+@baseUrl = http://38.242.201.229/api
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDMsImVtYWlsIjpudWxsLCJyb2xlIjoidXNlciIsIm5hbWUiOiJhbGkuYWZ6YWwiLCJjaXR5X2lkIjozLCJpYXQiOjE3NzEzODk3NjR9.1ZnXWZ7Vn26HTo8kBLnFwF699gfV9Hh5ETMe_Qnbt30
+
+# User Login
+# POST {{baseUrl}}/users/login
+# Content-Type: application/json
+
+# {
+#     "name": "ali.afzal",
+#     "password": "ali@afzal"
+# }
+
+
+GET {{baseUrl}}/reports/my-report?fromDate=2026-01-20&toDate=2026-02-18
+Authorization: Bearer {{token}}

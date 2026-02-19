@@ -1,0 +1,12 @@
+HTTP/1.1 200 OK
+Server: nginx/1.24.0 (Ubuntu)
+Date: Wed, 18 Feb 2026 04:42:44 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 309
+Connection: close
+X-Powered-By: Express
+Access-Control-Allow-Origin: *
+Set-Cookie: token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDMsImVtYWlsIjpudWxsLCJyb2xlIjoidXNlciIsIm5hbWUiOiJhbGkuYWZ6YWwiLCJjaXR5X2lkIjozLCJpYXQiOjE3NzEzODk3NjR9.1ZnXWZ7Vn26HTo8kBLnFwF699gfV9Hh5ETMe_Qnbt30; Path=/
+ETag: W/"135-dk4gPmFZ9ip+iMS5inbcprOhhkE"
+
+{"message":"Login successful","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDMsImVtYWlsIjpudWxsLCJyb2xlIjoidXNlciIsIm5hbWUiOiJhbGkuYWZ6YWwiLCJjaXR5X2lkIjozLCJpYXQiOjE3NzEzODk3NjR9.1ZnXWZ7Vn26HTo8kBLnFwF699gfV9Hh5ETMe_Qnbt30","user":{"id":43,"name":"ali.afzal","email":null,"role":"user","city_id":3}}
