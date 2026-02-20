@@ -63,7 +63,7 @@ export const generateDailyVisitReport = async (req, res) => {
       include: [
         {
           model: Customers,
-          attributes: ["customer_name", "tehsil", "type" , "bags_potential" , "region"],
+          attributes: ["customer_name", "tehsil", "type", "bags_potential", "region"],
           as: "customer",
           // ðŸš€ Yeh nested include missing tha, jiski wajah se 'name' undefined ho raha tha
           include: [
@@ -74,7 +74,7 @@ export const generateDailyVisitReport = async (req, res) => {
             }
           ]
         },
-        
+
       ],
       order: [["createdAt", "ASC"]],
     });
@@ -111,13 +111,13 @@ export const generateDailyVisitReport = async (req, res) => {
         date: visitDate,
         createdAt: v.createdAt, // Original timestamp for sorting if needed
         visit_time: visitTime,  // ðŸ‘ˆ Yeh field frontend par dikhane ke liye
-        visit_purpose:visitPurpose,
+        visit_purpose: visitPurpose,
         customer_name: v.customer?.customer_name || "N/A",
         city: v.customer?.cityDetails?.name || "N/A",
         type: v.customer?.type || "N/A",
         tehsil: v.customer?.tehsil || "N/A",
         bags_potential: v.customer?.bags_potential || "N/A",
-        region : v.customer?.region || "N/A",
+        region: v.customer?.region || "N/A",
         status: v.is_completed ? "OK" : "Yes",
         start_meter_reading: dayReading?.startReading || "N/A",
         start_day_time: dayReading ? dayReading.createdAt.toISOString() : null,
@@ -125,9 +125,9 @@ export const generateDailyVisitReport = async (req, res) => {
         visit_location: { lat: v.latitude, lng: v.longitude },
         start_day_location: dayReading
           ? {
-              lat: dayReading.location_latitude,
-              lng: dayReading.location_longitude,
-            }
+            lat: dayReading.location_latitude,
+            lng: dayReading.location_longitude,
+          }
           : null,
       };
     });
@@ -219,12 +219,12 @@ export const generateSummaryReport = async (req, res) => {
     dayInfos.forEach((d) => {
       const date = d.createdAt.toISOString().split("T")[0];
       const uId = d.userId; // Startday wala column
-      
+
       const userObj = allUsers.find(u => u.id === uId);
       const userName = userObj?.fullname || userObj?.name || "N/A";
 
       if (!dateGroups[date]) dateGroups[date] = {};
-      
+
       dateGroups[date][uId] = {
         sales_person: userName,
         total_visits: 0,
@@ -312,13 +312,15 @@ export const generateSummaryReport = async (req, res) => {
 
 
 
+
+
 // Isko controller file mein add karein
 export const generateMyReport = async (req, res) => {
   try {
     // 🚨 Authentication middleware se userId aye gi (req.user.id)
     // Query se sirf dates lenge
-    const { fromDate, toDate } = req.query;
-    const user_id = req.user.id; // Login bande ki ID
+    const { fromDate, toDate, targetUserId } = req.query;
+    const user_id = targetUserId || req.user.id; // Login bande ki ID ya target id
 
     if (!fromDate || !toDate) {
       return res.status(400).json({ error: "From Date and To Date are required" });
@@ -326,10 +328,10 @@ export const generateMyReport = async (req, res) => {
 
     // 1. User ki basic info (for header)
     const user = await User.findByPk(user_id, {
-        attributes: ['fullname', 'designation', 'region']
+      attributes: ['fullname', 'designation', 'region']
     });
 
-  // 2. Startday Info (Meter Readings)
+    // 2. Startday Info (Meter Readings)
     const dayInfos = await Startday.findAll({
       where: {
         userId: user_id, // Database mein 'userId' hai
@@ -337,14 +339,14 @@ export const generateMyReport = async (req, res) => {
       },
       // 👈 Attributes specify kar diye taake faltu 'user_id' na mangwaye
       attributes: [
-        "id", 
-        "userId", 
-        "startReading", 
-        "photoUri", 
-        "createdAt", 
-        "location_latitude", 
+        "id",
+        "userId",
+        "startReading",
+        "photoUri",
+        "createdAt",
+        "location_latitude",
         "location_longitude"
-      ], 
+      ],
     });
 
     // 3. Visits with Customers & City Details
@@ -375,7 +377,7 @@ export const generateMyReport = async (req, res) => {
     dates.forEach(date => {
       // Is din ki meter reading dhoondo
       const dayEntry = dayInfos.find(d => d.createdAt.toISOString().split('T')[0] === date);
-      
+
       // Is din ki saari visits filter karo
       const dayVisits = visits.filter(v => v.createdAt.toISOString().split('T')[0] === date).map(v => ({
         time: v.createdAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),

@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 // import City from '../models/City.js';
 // import User from '../models/User.js';
 import { Customers, User, City } from '../models/associations.js';
+import { getFlatIds } from '../herarchy/herarchy.js';
 // console.log("Customers Model in Controller:", Customers);
 
 const createCustomer = async (req, res) => {
@@ -16,18 +17,18 @@ const createCustomer = async (req, res) => {
 
         const existingCustomer = await Customers.findOne({ where: { contact: contact } });
 
-        
-        
+
+
         if (existingCustomer) {
-        
-           // CHECK: Agar banane wala wahi purana banda hi hai
+
+            // CHECK: Agar banane wala wahi purana banda hi hai
             if (existingCustomer.user_id === user_id) {
-                return res.status(400).json({ 
-                    error: "You Already Own This Customer , Check your Existing Customer List" 
+                return res.status(400).json({
+                    error: "You Already Own This Customer , Check your Existing Customer List"
                 });
             }
-        
-        
+
+
             // 2. Agar mil gaya toh naya record nahi banana, sirf user_id override karni hai
             await existingCustomer.update({ user_id: user_id });
 
@@ -205,6 +206,67 @@ const getAllCustomersByCity = async (req, res) => {
     }
 }
 
+
+const getTeamCustomers = async (req, res) => {
+    try {
+        const loggedInUserId = req.user.id;
+        
+        // 1. Pagination Params (Mobile se page number ayega)
+        const page = parseInt(req.query.page) || 1; 
+        const limit = parseInt(req.query.limit) || 20; // Ek waqt mein 20 customers
+        const offset = (page - 1) * limit;
+
+        // 2. Hierarchy Fetching (Wahi purani light-weight query)
+        const userWithTeam = await User.findByPk(loggedInUserId, {
+            include: {
+                model: User,
+                as: 'subordinates',
+                include: {
+                    model: User,
+                    as: 'subordinates',
+                    include: { model: User, as: 'subordinates' }
+                }
+            }
+        });
+
+        const teamIds = userWithTeam ? getFlatIds(userWithTeam) : [loggedInUserId];
+
+        // 3. FindAndCountAll use karein taake total pages pata chal sakein
+        const { count, rows: customers } = await Customers.findAndCountAll({
+            where: {
+                user_id: { [Op.in]: teamIds }
+            },
+            limit: limit,
+            offset: offset,
+            include: [
+                { model: City, as: 'cityDetails', attributes: ['name'] },
+                { model: User, as: 'userDetails', attributes: ['fullname'] }
+            ],
+            order: [['createdAt', 'DESC']],
+            subQuery: false
+        });
+
+        const totalPages = Math.ceil(count / limit);
+
+        // 4. Response
+        res.status(200).json({
+            success: true,
+            pagination: {
+                totalItems: count,
+                totalPages: totalPages,
+                currentPage: page,
+                itemsPerPage: limit
+            },
+            teamIds: teamIds,
+            data: customers
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+
 const getCustomerById = async (req, res) => {
     const customerId = req.params.id;
     try {
@@ -308,4 +370,4 @@ const deleteCustomerById = async (req, res) => {
 
 
 
-export { createCustomer, getAllCustomers, getCustomerById, updateCustomerById, deleteCustomerById, getAllCustomersByCity };  
+export { createCustomer, getAllCustomers, getCustomerById, updateCustomerById, deleteCustomerById, getAllCustomersByCity, getTeamCustomers };  

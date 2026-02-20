@@ -388,6 +388,50 @@ export const updateUser = async (req, res) => {
 
 
 
+// Route: /api/users/my-team-list
+export const getMyTeamList = async (req, res) => {
+    try {
+        const loggedInUserId = req.user.id;
+
+        // 1. Database se saare users ka sirf ID, Name aur ReportTo mangwaein (Bina kisi join ke)
+        // Yeh query bohot fast hoti hai kyunke joins zero hain
+        const allUsers = await User.findAll({
+            attributes: ['id', 'fullname', 'reportTo'],
+            raw: true
+        });
+
+        // 2. JavaScript mein hierarchy dhoondne ka function (Recursion)
+        const findSubordinates = (parentId) => {
+            let results = [];
+            // Pure array mein dhoondo kis kis ka manager ye parentId hai
+            const subs = allUsers.filter(u => u.reportTo === parentId);
+
+            subs.forEach(sub => {
+                results.push({ id: sub.id, name: sub.fullname });
+                // Phir unke niche walon ko dhoondo
+                results = [...results, ...findSubordinates(sub.id)];
+            });
+            return results;
+        };
+
+        // 3. Pehle khud ko add karein, phir poori team nikalyein
+        const me = allUsers.find(u => u.id === loggedInUserId);
+        const myTeam = [
+            { id: me.id, name: me.fullname + " (Me)" },
+            ...findSubordinates(loggedInUserId)
+        ];
+
+        res.status(200).json({
+            success: true,
+            teamMembers: myTeam
+        });
+
+    } catch (error) {
+        console.error("Team List Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 export const deleteUser = async (req, res) => {
     try {
         const { id } = req.params;

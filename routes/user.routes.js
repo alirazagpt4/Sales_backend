@@ -2,19 +2,22 @@ import express from "express";
 const router = express.Router();
 import { authenticateToken, isAdmin, isSuperAdmin } from "../Middlewares/authMiddleware.js";
 
-import { createUser, loginUser, loginAdmin, getAllUsers, updateUser, deleteUser, viewUser } from "../controllers/User.controller.js";
+import { createUser, loginUser, loginAdmin, getAllUsers, updateUser, deleteUser, viewUser, getMyTeamList } from "../controllers/User.controller.js";
 
 // Route to create a new user
-router.post('/register' ,  createUser);
+router.post('/register', createUser);
 
 // Route to login user
 router.post('/login', loginUser);
 
+router.get('/my-team-list', authenticateToken, getMyTeamList);
 
 // Admin login 
 router.post('/admin/login', loginAdmin);
 
 router.get('/', authenticateToken, getAllUsers);
+
+
 
 
 
