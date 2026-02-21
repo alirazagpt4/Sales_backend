@@ -207,16 +207,77 @@ const getAllCustomersByCity = async (req, res) => {
 }
 
 
+// const getTeamCustomers = async (req, res) => {
+//     try {
+//         const loggedInUserId = req.user.id;
+        
+//         // 1. Pagination Params (Mobile se page number ayega)
+//         const page = parseInt(req.query.page) || 1; 
+//         const limit = parseInt(req.query.limit) || 20; // Ek waqt mein 20 customers
+//         const offset = (page - 1) * limit;
+
+//         // 2. Hierarchy Fetching (Wahi purani light-weight query)
+//         const userWithTeam = await User.findByPk(loggedInUserId, {
+//             include: {
+//                 model: User,
+//                 as: 'subordinates',
+//                 include: {
+//                     model: User,
+//                     as: 'subordinates',
+//                     include: { model: User, as: 'subordinates' }
+//                 }
+//             }
+//         });
+
+//         const teamIds = userWithTeam ? getFlatIds(userWithTeam) : [loggedInUserId];
+
+//         // 3. FindAndCountAll use karein taake total pages pata chal sakein
+//         const { count, rows: customers } = await Customers.findAndCountAll({
+//             where: {
+//                 user_id: { [Op.in]: teamIds }
+//             },
+//             limit: limit,
+//             offset: offset,
+//             include: [
+//                 { model: City, as: 'cityDetails', attributes: ['name'] },
+//                 { model: User, as: 'userDetails', attributes: ['fullname'] }
+//             ],
+//             order: [['createdAt', 'DESC']],
+//             subQuery: false
+//         });
+
+//         const totalPages = Math.ceil(count / limit);
+
+//         // 4. Response
+//         res.status(200).json({
+//             success: true,
+//             pagination: {
+//                 totalItems: count,
+//                 totalPages: totalPages,
+//                 currentPage: page,
+//                 itemsPerPage: limit
+//             },
+//             teamIds: teamIds,
+//             data: customers
+//         });
+
+//     } catch (error) {
+//         res.status(500).json({ error: error.message });
+//     }
+// };
+
+
+
+
+
+
 const getTeamCustomers = async (req, res) => {
     try {
         const loggedInUserId = req.user.id;
-        
-        // 1. Pagination Params (Mobile se page number ayega)
-        const page = parseInt(req.query.page) || 1; 
-        const limit = parseInt(req.query.limit) || 20; // Ek waqt mein 20 customers
-        const offset = (page - 1) * limit;
+        const { page = 1, limit = 20, search = '' } = req.query; // Search param pakrein
+        const offset = (parseInt(page) - 1) * parseInt(limit);
 
-        // 2. Hierarchy Fetching (Wahi purani light-weight query)
+        // 1. Hierarchy Fetching
         const userWithTeam = await User.findByPk(loggedInUserId, {
             include: {
                 model: User,
@@ -231,33 +292,46 @@ const getTeamCustomers = async (req, res) => {
 
         const teamIds = userWithTeam ? getFlatIds(userWithTeam) : [loggedInUserId];
 
-        // 3. FindAndCountAll use karein taake total pages pata chal sakein
+        // 2. Search Logic (Dynamic Where Clause)
+        let searchWhere = {
+            user_id: { [Op.in]: teamIds }
+        };
+
+        // Agar user ne search box mein kuch likha hai
+        if (search) {
+            searchWhere[Op.or] = [
+                { customer_name: { [Op.like]: `%${search}%` } }, // Customer ke naam pe search
+                { contact: { [Op.like]: `%${search}%` } },       // Contact pe search
+                { '$userDetails.fullname$': { [Op.like]: `%${search}%` } } // 🟢 Creator (User) ke naam pe search
+            ];
+        }
+
+        // 3. Main Query
         const { count, rows: customers } = await Customers.findAndCountAll({
-            where: {
-                user_id: { [Op.in]: teamIds }
-            },
-            limit: limit,
+            where: searchWhere,
+            limit: parseInt(limit),
             offset: offset,
             include: [
                 { model: City, as: 'cityDetails', attributes: ['name'] },
-                { model: User, as: 'userDetails', attributes: ['fullname'] }
+                { 
+                    model: User, 
+                    as: 'userDetails', // 👈 Is alias ka dhyaan rakhein
+                    attributes: ['fullname'] 
+                }
             ],
             order: [['createdAt', 'DESC']],
-            subQuery: false
+            subQuery: false // 🛑 Ye lazmi hai warna associated search fail ho jati hai
         });
 
         const totalPages = Math.ceil(count / limit);
 
-        // 4. Response
         res.status(200).json({
             success: true,
             pagination: {
                 totalItems: count,
                 totalPages: totalPages,
-                currentPage: page,
-                itemsPerPage: limit
+                currentPage: parseInt(page),
             },
-            teamIds: teamIds,
             data: customers
         });
 
@@ -265,7 +339,6 @@ const getTeamCustomers = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-
 
 const getCustomerById = async (req, res) => {
     const customerId = req.params.id;
