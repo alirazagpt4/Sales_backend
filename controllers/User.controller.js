@@ -70,7 +70,21 @@ export const loginUser = async (req, res) => {
 
 
         // find user by email
-        const user = await User.findOne({ where: { name } });
+        const user = await User.findOne({
+            where: { name },
+            include: [
+                {
+                    model: City,
+                    as: 'cityDetails',
+                    attributes: ['name']
+                },
+                {
+                    model: Designation,
+                    attributes: ['id', 'designation'],
+                    as: 'designationDetails'
+                }
+            ]
+        });
 
         if (!user) {
             return res.status(401).json({ error: 'Invalid name or password.' });
@@ -110,7 +124,8 @@ export const loginUser = async (req, res) => {
                 city_id: user.city_id,
                 fullname: user.fullname,
                 designationId: user.designationId,
-
+                designation: user.designationDetails?.designation,
+                city: user.cityDetails?.name,
 
             }
         });

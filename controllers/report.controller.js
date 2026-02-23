@@ -343,6 +343,8 @@ export const generateMyReport = async (req, res) => {
         "userId",
         "startReading",
         "photoUri",
+        "is_leave",
+        "status",
         "createdAt",
         "location_latitude",
         "location_longitude"
@@ -392,6 +394,8 @@ export const generateMyReport = async (req, res) => {
         date: date,
         day_start_time: dayEntry ? dayEntry.createdAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "N/A",
         meter_reading: dayEntry?.startReading || "N/A",
+        is_leave: dayEntry?.is_leave || false,
+        status: dayEntry?.status || "PRESENT",
         activities: dayVisits
       });
     });
@@ -399,9 +403,9 @@ export const generateMyReport = async (req, res) => {
     return res.status(200).json({
       success: true,
       meta: {
-        name: user.fullname,
-        designation: user.designation,
-        region: user.region
+        name: user?.fullname,
+        designation: user?.designation,
+        region: user?.region
       },
       report: groupedReport
     });
