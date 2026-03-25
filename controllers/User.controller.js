@@ -181,8 +181,8 @@ export const loginAdmin = async (req, res) => {
 export const getAllUsers = async (req, res) => {
     try {
         // Pagination setup
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 100;
+        const limit = Math.min(parseInt(req.query.limit) || 10, 100); // Max 100
+        const page = Math.max(parseInt(req.query.page) || 1, 1);     // Min 1
         const offset = (page - 1) * limit;
 
         // Search setup
@@ -193,12 +193,15 @@ export const getAllUsers = async (req, res) => {
             whereClause[Op.or] = [
                 { name: { [Op.like]: `%${search}%` } },
                 { email: { [Op.like]: `%${search}%` } },
-                { role: { [Op.like]: `%${search}%` } }
+                { role: { [Op.like]: `%${search}%` } },
+                { fullname: { [Op.like]: `%${search}%` } }, // Yeh missing tha
+                { mobile_ph: { [Op.like]: `%${search}%` } } // Yeh missing tha
             ];
         }
 
         // Fetch users and count
         const { count, rows: users } = await User.findAndCountAll({
+            distinct: true,
             where: whereClause,
             limit: limit,
             offset: offset,
@@ -260,7 +263,7 @@ export const getAllUsers = async (req, res) => {
             totalUsers: count,
             totalPages: Math.ceil(count / limit),
             currentPage: page,
-            users,
+            users: formattedUsers,
         });
 
     } catch (err) {
