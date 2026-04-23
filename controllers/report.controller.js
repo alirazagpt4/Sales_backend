@@ -670,9 +670,12 @@ export const generateMyReport = async (req, res) => {
     const groupedReport = [];
 
     // Saari unique dates nikalne ke liye
-    const dates = [...new Set(visits.map(v => v.createdAt.toISOString().split('T')[0]))];
+    const allDates = [...new Set([
+      ...dayInfos.map(d => d.createdAt.toISOString().split('T')[0]),
+      ...visits.map(v => v.createdAt.toISOString().split('T')[0])
+    ])].sort((a, b) => new Date(b) - new Date(a));
 
-    dates.forEach(date => {
+    allDates.forEach(date => {
       // Is din ki meter reading dhoondo
       const dayEntry = dayInfos.find(d => d.createdAt.toISOString().split('T')[0] === date);
 
@@ -690,8 +693,9 @@ export const generateMyReport = async (req, res) => {
         date: date,
         day_start_time: dayEntry ? dayEntry.createdAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "N/A",
         meter_reading: dayEntry?.startReading || "N/A",
-        is_leave: dayEntry?.is_leave || false,
-        status: dayEntry?.status || "PRESENT",
+        // In dono lines ko replace karo:
+        is_leave: dayEntry ? (dayEntry.is_leave == 1 || dayEntry.is_leave == true) : false,
+        status: dayEntry ? (dayEntry.is_leave ? "LEAVE" : (dayEntry.status || "PRESENT")) : "ABSENT",
         activities: dayVisits
       });
     });
@@ -717,7 +721,7 @@ export const generateMeterReadingReport = async (req, res) => {
   try {
     const { name, fromDate, toDate } = req.query;
 
-    if ( !fromDate || !toDate) {
+    if (!fromDate || !toDate) {
       return res.status(400).json({ error: "Name, From Date, and To Date are all required" });
     }
 
