@@ -475,79 +475,89 @@ export const generateDailyVisitReport = async (req, res) => {
 
 export const generateSummaryReport = async (req, res) => {
   try {
-    const { fromDate, toDate } = req.query;
+    const { fromDate, toDate, region, userId } = req.query;
 
     if (!fromDate || !toDate) {
       return res.status(400).json({ error: "From Date and To Date are required" });
     }
 
-    // 1. Users Fetch
+    // --- 1. User Filter Configuration ---
+    let userWhere = {};
+    if (userId) userWhere.id = userId;
+    if (region) userWhere.region = region;
+
     const allUsers = await User.findAll({
-      attributes: ["id", "fullname", "name"],
+      where: userWhere,
+      attributes: ["id", "fullname", "name", "region"],
     });
 
-    // 2. Startday Fetch (Using 'status' column instead of leave_status)
-    const dayInfos = await Startday.findAll({
-      where: {
-        createdAt: {
-          [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`],
-        },
-      },
-      // attributes mein 'status' use kiya hai
-      attributes: ["id", "startReading", "createdAt", "userId", "is_leave", "status"],
+    // Hash Map for O(1) Lookup - Storing Name & Region
+    const userMap = {};
+    const validUserIds = allUsers.map(u => {
+      userMap[u.id] = {
+        name: u.fullname || u.name || "N/A",
+        region: u.region || "N/A"
+      };
+      return u.id;
     });
 
-    // 3. Visits Fetch
-    const visits = await Visits.findAll({
-      where: {
-        createdAt: {
-          [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`],
+    if (validUserIds.length === 0) {
+      return res.status(200).json({ report: [], grand_summary: { total_sales_persons: 0 } });
+    }
+
+    // --- 2. Parallel Data Fetching ---
+    const [dayInfos, visits] = await Promise.all([
+      Startday.findAll({
+        where: {
+          userId: { [Op.in]: validUserIds },
+          createdAt: { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] },
         },
-      },
-      attributes: ["id", "purpose", "createdAt", "user_id"],
-    });
+        attributes: ["id", "startReading", "createdAt", "userId", "is_leave", "status"],
+      }),
+      Visits.findAll({
+        where: {
+          user_id: { [Op.in]: validUserIds },
+          createdAt: { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] },
+        },
+        attributes: ["id", "purpose", "createdAt", "user_id"],
+      })
+    ]);
 
     const dateGroups = {};
 
-    // --- LOGIC: Startday Mapping ---
+    // --- 3. Process Startday Data ---
     dayInfos.forEach((d) => {
       const date = d.createdAt.toISOString().split("T")[0];
       const uId = d.userId;
-
-      const userObj = allUsers.find(u => u.id === uId);
-      const userName = userObj?.fullname || userObj?.name || "N/A";
-
       if (!dateGroups[date]) dateGroups[date] = {};
 
       dateGroups[date][uId] = {
-        sales_person: userName,
+        sales_person: userMap[uId].name,
+        region: userMap[uId].region, // Region added to response
         total_visits: 0,
         regular_visit: 0,
         followup_visit: 0,
         mature_order: 0,
         meter_reading: d.startReading || "N/A",
-        // 'status' column mapping
-        is_leave: d.is_leave || false,
         status: d.status || (d.is_leave ? "LEAVE" : "PRESENT"),
       };
     });
 
-    // --- LOGIC: Visits Mapping ---
+    // --- 4. Process Visits (Corrected Mapping: Old=Followup, New=Regular) ---
     visits.forEach((v) => {
       const date = v.createdAt.toISOString().split("T")[0];
       const uId = v.user_id;
 
       if (!dateGroups[date]) dateGroups[date] = {};
       if (!dateGroups[date][uId]) {
-        const userObj = allUsers.find(u => u.id === uId);
         dateGroups[date][uId] = {
-          sales_person: userObj?.fullname || userObj?.name || "N/A",
+          sales_person: userMap[uId].name,
+          region: userMap[uId].region,
           total_visits: 0,
           regular_visit: 0,
           followup_visit: 0,
           mature_order: 0,
           meter_reading: "N/A",
-          is_leave: false,
           status: "PRESENT"
         };
       }
@@ -555,51 +565,49 @@ export const generateSummaryReport = async (req, res) => {
       const row = dateGroups[date][uId];
       row.total_visits++;
 
-      if (v.purpose === "Old") row.regular_visit++;
-      else if (v.purpose === "New") row.followup_visit++;
-      else if (v.purpose === "Mature") row.mature_order++;
+      if (v.purpose === "Old") {
+        row.followup_visit++; // Old = Followup
+      } else if (v.purpose === "New") {
+        row.regular_visit++;  // New = Regular
+      } else if (v.purpose === "Mature") {
+        row.mature_order++;
+      }
     });
 
-    // --- Final Formatting ---
+    // --- 5. Final Formatting & Date Sorting ---
     const finalReport = [];
-    let grandVisits = 0, grandReg = 0, grandFol = 0, grandMat = 0;
+    let grandTotals = { total_visits: 0, total_regular: 0, total_followup: 0, total_mature: 0 };
     const uniqueSalesPersons = new Set();
 
     Object.keys(dateGroups).sort().forEach((date) => {
       const personsData = Object.values(dateGroups[date]);
-      let dVisits = 0, dReg = 0, dFol = 0, dMat = 0;
+      let dSum = { visits: 0, reg: 0, fol: 0, mat: 0 };
 
       personsData.forEach(p => {
-        dVisits += p.total_visits;
-        dReg += p.regular_visit;
-        dFol += p.followup_visit;
-        dMat += p.mature_order;
+        dSum.visits += p.total_visits;
+        dSum.reg += p.regular_visit;
+        dSum.fol += p.followup_visit;
+        dSum.mat += p.mature_order;
         uniqueSalesPersons.add(p.sales_person);
       });
 
       finalReport.push({
         visit_date: date,
         data: personsData,
-        date_summary: {
-          total_persons: personsData.length,
-          total_visits: dVisits,
-          regular: dReg,
-          followup: dFol,
-          mature: dMat
-        }
+        date_summary: dSum
       });
 
-      grandVisits += dVisits; grandReg += dReg; grandFol += dFol; grandMat += dMat;
+      grandTotals.total_visits += dSum.visits;
+      grandTotals.total_regular += dSum.reg;
+      grandTotals.total_followup += dSum.fol;
+      grandTotals.total_mature += dSum.mat;
     });
 
     return res.status(200).json({
       report: finalReport,
       grand_summary: {
         total_sales_persons: uniqueSalesPersons.size,
-        total_visits: grandVisits,
-        total_regular: grandReg,
-        total_followup: grandFol,
-        total_mature: grandMat
+        ...grandTotals
       }
     });
 
