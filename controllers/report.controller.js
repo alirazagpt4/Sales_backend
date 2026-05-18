@@ -4,6 +4,8 @@ import Startday from "../models/startday.model.js";
 import Customers from "../models/customers.model.js";
 import City from "../models/City.js";
 import { Op } from "sequelize";
+import { getDistanceInMeters } from '../utils/geoHelper.js'
+
 
 // export const generateDailyVisitReport = async (req, res) => {
 //   try {
@@ -782,5 +784,204 @@ export const generateMeterReadingReport = async (req, res) => {
   } catch (error) {
     console.error("Meter Reading Report Error:", error);
     res.status(500).json({ error: error.message });
+  }
+};
+
+
+
+
+// Visit Verfication Report Function
+
+export const generateVisitVerificationReport = async (req, res) => {
+  try {
+
+  
+
+    const { name, fromDate, toDate } = req.query;
+
+    // 1. Validation Check
+    if (!name || !fromDate || !toDate) {
+      return res.status(400).json({ error: "Name, From Date, and To Date are all required" });
+    }
+
+    // 2. Target User Fetch (With Associated City Details)
+    const user = await User.findOne({
+      where: { name: name },
+      include: [{ model: City, as: "cityDetails", attributes: ["name"] }],
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "Requested Sales Person user not found" });
+    }
+
+    const user_id = user.id;
+
+    // 3. Extract Attendance Metrics (Startday Logs via 'userId')
+    const dayInfos = await Startday.findAll({
+      where: {
+        userId: user_id, // Matching the camelCase model attribute
+        createdAt: { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] },
+      },
+      attributes: [
+        "startReading", "photoUri", "createdAt",
+        "location_latitude", "location_longitude",
+        "is_leave", "status", "leave_reason"
+      ],
+    });
+
+    // 4. Extract Visit Records with Nested Customer Matrix
+    const visits = await Visits.findAll({
+      where: {
+        user_id: user_id, // Matching explicitly documented foreign key
+        createdAt: { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] },
+      },
+      include: [
+        {
+          model: Customers,
+          as: "customer",
+          attributes: ["customer_name", "tehsil", "type", "bags_potential", "region", "latitude", "longitude"],
+          include: [{ model: City, as: "cityDetails", attributes: ["name"] }]
+        },
+      ],
+      order: [["createdAt", "ASC"]],
+    });
+
+    // Counter Accumulators
+    let verifiedCount = 0;
+    let mismatchCount = 0;
+    let unverifiedCount = 0;
+
+    // --- STEP 1: Process and Verify Each Record Log ---
+    const flatData = visits.map((v) => {
+      const visitDate = v.createdAt.toISOString().split("T")[0];
+      const visitTime = v.createdAt.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true
+      });
+
+      // Parse Floats safely to secure geo-math operations
+      const userLat = parseFloat(v.latitude);
+      const userLng = parseFloat(v.longitude);
+      const custLat = v.customer?.latitude ? parseFloat(v.customer.latitude) : null;
+      const custLng = v.customer?.longitude ? parseFloat(v.customer.longitude) : null;
+
+      // Execute Haversine Distance Calculation Engine
+      const distanceInMeters = getDistanceInMeters(userLat, userLng, custLat, custLng);
+
+      let verificationFlag = "Unverified";
+      let distanceString = "N/A";
+
+      if (distanceInMeters !== null && !isNaN(distanceInMeters)) {
+        distanceString = `${distanceInMeters.toFixed(1)}m`;
+
+        // Strict 100-Meter Boundary Condition Rule
+        if (distanceInMeters <= 100) {
+          verificationFlag = "Verified";
+          verifiedCount++;
+        } else {
+          verificationFlag = "Location Mismatch";
+          mismatchCount++;
+        }
+      } else {
+        unverifiedCount++; // Fallback case if customer table maps missing lat/lng coordinates
+      }
+
+      // Cross reference current date group attendance log
+      const dayReading = dayInfos.find(
+        (d) => d.createdAt.toISOString().split("T")[0] === visitDate
+      );
+
+      return {
+        date: visitDate,
+        visit_id: v.id,
+        visit_time: visitTime,
+        visit_purpose: v.purpose || "N/A",
+        remarks: v.remarks || "",
+        customer_name: v.customer?.customer_name || "N/A",
+        city: v.customer?.cityDetails?.name || "N/A",
+        type: v.customer?.type || "N/A",
+        tehsil: v.customer?.tehsil || "N/A",
+        bags_potential: v.customer?.bags_potential || 0,
+        region: v.customer?.region || "N/A",
+
+        // Spatial Data & Flag Elements
+        user_coordinates: { lat: userLat, lng: userLng },
+        customer_coordinates: { lat: custLat, lng: custLng },
+        calculated_distance: distanceString,
+        verification_status: verificationFlag,
+
+        // Attendance data context mapping
+        start_meter_reading: dayReading?.startReading || "N/A",
+        photoUri: dayReading?.photoUri || null,
+        is_leave: dayReading?.is_leave || false,
+        leave_status: dayReading?.is_leave ? (dayReading.status || "LEAVE") : "PRESENT",
+        leave_reason: dayReading?.leave_reason || ""
+      };
+    });
+
+    // --- STEP 2: Array Structural Grouping Logic ---
+    const groupedReport = [];
+
+    // Push standard mapped array rows into group brackets
+    flatData.forEach((item) => {
+      let existingGroup = groupedReport.find((g) => g.date === item.date);
+      if (existingGroup) {
+        existingGroup.visits.push(item);
+      } else {
+        groupedReport.push({
+          date: item.date,
+          meter_reading: item.start_meter_reading,
+          photoUri: item.photoUri,
+          is_leave: item.is_leave,
+          leave_status: item.leave_status,
+          leave_reason: item.leave_reason,
+          visits: [item],
+        });
+      }
+    });
+
+    // Inject empty/leave state days that contain zero field visit attempts
+    dayInfos.forEach((day) => {
+      const dDate = day.createdAt.toISOString().split("T")[0];
+      let existingGroup = groupedReport.find((g) => g.date === dDate);
+
+      if (!existingGroup) {
+        groupedReport.push({
+          date: dDate,
+          meter_reading: day.startReading || "N/A",
+          photoUri: day.photoUri || null,
+          is_leave: day.is_leave,
+          leave_status: day.is_leave ? (day.status || "LEAVE") : "PRESENT",
+          leave_reason: day.leave_reason || "",
+          visits: [], // Safe mapping wrapper arrays to protect frontend UI maps
+        });
+      }
+    });
+
+    // Order mapping sequence down chronologically
+    groupedReport.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // 5. Structure Final Output Payload JSON Response Object
+    return res.status(200).json({
+      meta: {
+        sales_person: user.fullname,
+        designation: user.designation || "N/A",
+        region: user.region || "N/A",
+        base_city: user.cityDetails?.name || "N/A",
+        filter_period: { from: fromDate, to: toDate },
+        metrics: {
+          total_visits: visits.length,
+          verified_visits: verifiedCount,
+          location_mismatch_visits: mismatchCount,
+          unverified_missing_coords: unverifiedCount
+        }
+      },
+      report: groupedReport,
+    });
+
+  } catch (error) {
+    console.error("Critical Failure in Security Spatial Verification Controller:", error);
+    return res.status(500).json({ error: "Internal Server System Error", details: error.message });
   }
 };
