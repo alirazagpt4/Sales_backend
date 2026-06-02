@@ -1,6 +1,6 @@
-import { DataTypes } from 'sequelize'; 
+import { DataTypes } from 'sequelize';
 
-import sequelize from "../config/db.js"; 
+import sequelize from "../config/db.js";
 
 
 const Visits = sequelize.define('Visits', {
@@ -9,9 +9,9 @@ const Visits = sequelize.define('Visits', {
         primaryKey: true,
         autoIncrement: true,
     },
-    
+
     // --- Linking Fields (Foreign Keys) ---
-    
+
     customer_id: {
         type: DataTypes.STRING, // Ensure this matches the type of Customer's primary key (STRING)
         allowNull: false,
@@ -23,7 +23,7 @@ const Visits = sequelize.define('Visits', {
     },
 
     // --- Core Visit Data ---
-    
+
     // Location Data
     latitude: {
         type: DataTypes.FLOAT,
@@ -33,13 +33,13 @@ const Visits = sequelize.define('Visits', {
         type: DataTypes.FLOAT,
         allowNull: false,
     },
-    
+
     // Purpose and Type
     purpose: {
-        type: DataTypes.ENUM('New', 'Mature' , 'Old'),
+        type: DataTypes.ENUM('New', 'Mature', 'Old', 'NewPotentialCustomer'),
         allowNull: true
     },
-    date: { 
+    date: {
         type: DataTypes.DATEONLY, // To store date only (YYYY-MM-DD)
         allowNull: false,
     },
@@ -50,8 +50,8 @@ const Visits = sequelize.define('Visits', {
         allowNull: true,
     },
 
-  
-},{ // <-- Yahan options object shuru hota hai
+
+}, { // <-- Yahan options object shuru hota hai
     tableName: 'visits',       // Force chote harfon wala table name
     freezeTableName: true,     // Sequelize ko Model ka naam plural banane se rokein
 });

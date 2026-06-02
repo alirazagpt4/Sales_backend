@@ -236,6 +236,7 @@ export const generateDailyVisitReport = async (req, res) => {
     let newVisits = 0;
     let matureVisits = 0;
     let oldVisits = 0;
+    let newPotentialCustomerVisits = 0;
 
     // --- STEP 1: Pehle flat data map karein (As per your old logic) ---
     const flatData = visits.map((v) => {
@@ -245,6 +246,7 @@ export const generateDailyVisitReport = async (req, res) => {
       if (v.purpose === "New") newVisits++;
       else if (v.purpose === "Mature") matureVisits++;
       else if (v.purpose === "Old") oldVisits++;
+      else if(v.purpose === "NewPotentialCustomer") newPotentialCustomerVisits++;
 
       const dayReading = dayInfos.find((d) => d.createdAt.toISOString().split("T")[0] === visitDate);
 
@@ -325,6 +327,7 @@ export const generateDailyVisitReport = async (req, res) => {
         new: newVisits,
         mature: matureVisits,
         old: oldVisits,
+        newPotentialCustomer: newPotentialCustomerVisits,
         designation: designation,
       },
       report: groupedReport,
@@ -540,6 +543,7 @@ export const generateSummaryReport = async (req, res) => {
         regular_visit: 0,
         followup_visit: 0,
         mature_order: 0,
+        newPotentialCustomer_visit:0,
         meter_reading: d.startReading || "N/A",
         status: d.status || (d.is_leave ? "LEAVE" : "PRESENT"),
       };
@@ -559,6 +563,7 @@ export const generateSummaryReport = async (req, res) => {
           regular_visit: 0,
           followup_visit: 0,
           mature_order: 0,
+          newPotentialCustomer_visit:0,
           meter_reading: "N/A",
           status: "PRESENT"
         };
@@ -573,23 +578,26 @@ export const generateSummaryReport = async (req, res) => {
         row.regular_visit++;  // New = Regular
       } else if (v.purpose === "Mature") {
         row.mature_order++;
+      } else if(v.purpose === "NewPotentialCustomer"){
+        row.newPotentialCustomer_visit++;
       }
     });
 
     // --- 5. Final Formatting & Date Sorting ---
     const finalReport = [];
-    let grandTotals = { total_visits: 0, total_regular: 0, total_followup: 0, total_mature: 0 };
+    let grandTotals = { total_visits: 0, total_regular: 0, total_followup: 0, total_mature: 0 , total_newPotentialCustomer:0 };
     const uniqueSalesPersons = new Set();
 
     Object.keys(dateGroups).sort().forEach((date) => {
       const personsData = Object.values(dateGroups[date]);
-      let dSum = { visits: 0, reg: 0, fol: 0, mat: 0 };
+      let dSum = { visits: 0, reg: 0, fol: 0, mat: 0 , npc:0 };
 
       personsData.forEach(p => {
         dSum.visits += p.total_visits;
         dSum.reg += p.regular_visit;
         dSum.fol += p.followup_visit;
         dSum.mat += p.mature_order;
+        dSum.npc += p.newPotentialCustomer_visit;
         uniqueSalesPersons.add(p.sales_person);
       });
 
@@ -603,6 +611,7 @@ export const generateSummaryReport = async (req, res) => {
       grandTotals.total_regular += dSum.reg;
       grandTotals.total_followup += dSum.fol;
       grandTotals.total_mature += dSum.mat;
+      grandTotals.total_newPotentialCustomer += dSum.npc;
     });
 
     return res.status(200).json({
