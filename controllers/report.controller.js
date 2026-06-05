@@ -246,7 +246,7 @@ export const generateDailyVisitReport = async (req, res) => {
       if (v.purpose === "New") newVisits++;
       else if (v.purpose === "Mature") matureVisits++;
       else if (v.purpose === "Old") oldVisits++;
-      else if(v.purpose === "NewPotentialCustomer") newPotentialCustomerVisits++;
+      else if (v.purpose === "NewPotentialCustomer") newPotentialCustomerVisits++;
 
       const dayReading = dayInfos.find((d) => d.createdAt.toISOString().split("T")[0] === visitDate);
 
@@ -543,7 +543,7 @@ export const generateSummaryReport = async (req, res) => {
         regular_visit: 0,
         followup_visit: 0,
         mature_order: 0,
-        newPotentialCustomer_visit:0,
+        newPotentialCustomer_visit: 0,
         meter_reading: d.startReading || "N/A",
         status: d.status || (d.is_leave ? "LEAVE" : "PRESENT"),
       };
@@ -563,7 +563,7 @@ export const generateSummaryReport = async (req, res) => {
           regular_visit: 0,
           followup_visit: 0,
           mature_order: 0,
-          newPotentialCustomer_visit:0,
+          newPotentialCustomer_visit: 0,
           meter_reading: "N/A",
           status: "PRESENT"
         };
@@ -578,19 +578,19 @@ export const generateSummaryReport = async (req, res) => {
         row.regular_visit++;  // New = Regular
       } else if (v.purpose === "Mature") {
         row.mature_order++;
-      } else if(v.purpose === "NewPotentialCustomer"){
+      } else if (v.purpose === "NewPotentialCustomer") {
         row.newPotentialCustomer_visit++;
       }
     });
 
     // --- 5. Final Formatting & Date Sorting ---
     const finalReport = [];
-    let grandTotals = { total_visits: 0, total_regular: 0, total_followup: 0, total_mature: 0 , total_newPotentialCustomer:0 };
+    let grandTotals = { total_visits: 0, total_regular: 0, total_followup: 0, total_mature: 0, total_newPotentialCustomer: 0 };
     const uniqueSalesPersons = new Set();
 
     Object.keys(dateGroups).sort().forEach((date) => {
       const personsData = Object.values(dateGroups[date]);
-      let dSum = { visits: 0, reg: 0, fol: 0, mat: 0 , npc:0 };
+      let dSum = { visits: 0, reg: 0, fol: 0, mat: 0, npc: 0 };
 
       personsData.forEach(p => {
         dSum.visits += p.total_visits;
@@ -804,7 +804,7 @@ export const generateMeterReadingReport = async (req, res) => {
 export const generateVisitVerificationReport = async (req, res) => {
   try {
 
-  
+
 
     const { name, fromDate, toDate } = req.query;
 
@@ -834,7 +834,7 @@ export const generateVisitVerificationReport = async (req, res) => {
       attributes: [
         "startReading", "photoUri", "createdAt",
         "location_latitude", "location_longitude",
-        "is_leave", "status", "leave_reason"
+        "is_leave", "status"
       ],
     });
 
@@ -924,8 +924,8 @@ export const generateVisitVerificationReport = async (req, res) => {
         start_meter_reading: dayReading?.startReading || "N/A",
         photoUri: dayReading?.photoUri || null,
         is_leave: dayReading?.is_leave || false,
-        leave_status: dayReading?.is_leave ? (dayReading.status || "LEAVE") : "PRESENT",
-        leave_reason: dayReading?.leave_reason || ""
+        leave_status: dayReading?.is_leave ? (dayReading.status || "LEAVE") : "PRESENT"
+        // leave_reason: dayReading?.leave_reason || ""
       };
     });
 
@@ -944,7 +944,7 @@ export const generateVisitVerificationReport = async (req, res) => {
           photoUri: item.photoUri,
           is_leave: item.is_leave,
           leave_status: item.leave_status,
-          leave_reason: item.leave_reason,
+          // leave_reason: item.leave_reason,
           visits: [item],
         });
       }
@@ -962,7 +962,7 @@ export const generateVisitVerificationReport = async (req, res) => {
           photoUri: day.photoUri || null,
           is_leave: day.is_leave,
           leave_status: day.is_leave ? (day.status || "LEAVE") : "PRESENT",
-          leave_reason: day.leave_reason || "",
+          // leave_reason: day.leave_reason || "",
           visits: [], // Safe mapping wrapper arrays to protect frontend UI maps
         });
       }
