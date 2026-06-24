@@ -181,56 +181,86 @@ import { getDistanceInMeters } from '../utils/geoHelper.js'
 
 export const generateDailyVisitReport = async (req, res) => {
   try {
-    const { name, fromDate, toDate } = req.query;
+    const fromDate = req.query.fromDate;
+    const toDate = req.query.toDate;
 
-    if (!name || !fromDate || !toDate) {
-      return res.status(400).json({ error: "Name, From Date, and To Date are all required" });
+    // Support both standardized query formats safely
+    const rawNames = req.query.names || req.query['names[]'];
+
+    if (!fromDate || !toDate) {
+      return res.status(400).json({ error: "From Date and To Date are required" });
     }
 
-    // 1. User aur City details (Original Code)
-    const user = await User.findOne({
-      where: { name: name },
+    let userWhereCondition = {};
+    let isFilteredByNames = false;
+
+    if (rawNames && rawNames !== "All" && rawNames !== "all" && rawNames !== 'All Users') {
+      let namesArray = [];
+      if (Array.isArray(rawNames)) {
+        namesArray = rawNames;
+      } else if (typeof rawNames === "string") {
+        namesArray = rawNames.split(",").map(n => n.trim());
+      }
+
+      if (namesArray.length > 0 && !namesArray.includes('All')) {
+        // Log ke mutabik dropdown field value database 'name' column se match karti hai
+        userWhereCondition = { name: { [Op.in]: namesArray } };
+        isFilteredByNames = true;
+      }
+    }
+
+    // 2. Fetch target users execution execution stack
+    const users = await User.findAll({
+      where: userWhereCondition,
       include: [{ model: City, as: "cityDetails" }],
     });
 
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!users || users.length === 0) {
+      return res.status(404).json({ error: "No matching users found in execution stack" });
+    }
 
-    const user_id = user.id;
-    const designation = user.designation;
-    const fullname = user.fullname;
-
-    // 2. Startday table (Added is_leave and status columns)
-    const dayInfos = await Startday.findAll({
-      where: {
-        userId: user_id,
-        createdAt: { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] },
-      },
-      attributes: [
-        "startReading",
-        "photoUri",
-        "createdAt",
-        "location_latitude",
-        "location_longitude",
-        "is_leave", // 🆕 Leave support
-        "status",   // 🆕 Leave reason/status
-      ],
+    const userMap = {};
+    const userIds = users.map(u => {
+      userMap[u.id] = u;
+      return u.id;
     });
 
-    // 3. Visits (Original Code)
-    const visits = await Visits.findAll({
-      where: {
-        user_id: user_id,
-        createdAt: { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] },
-      },
-      include: [
-        {
-          model: Customers,
-          attributes: ["customer_name", "tehsil", "type", "bags_potential", "region"],
-          as: "customer",
-          include: [{ model: City, as: "cityDetails", attributes: ["name"] }]
+    const startRange = new Date(`${fromDate}T00:00:00.000Z`);
+    const endRange = new Date(`${toDate}T23:59:59.999Z`);
+
+    // 3. Concurrent thread allocation for optimization
+    const [dayInfos, visits] = await Promise.all([
+      Startday.findAll({
+        where: {
+          userId: { [Op.in]: userIds },
+          createdAt: { [Op.between]: [startRange, endRange] },
         },
-      ],
-      order: [["createdAt", "ASC"]],
+        attributes: [
+          "userId", "startReading", "photoUri", "createdAt",
+          "location_latitude", "location_longitude", "is_leave", "status",
+        ],
+      }),
+      Visits.findAll({
+        where: {
+          user_id: { [Op.in]: userIds },
+          createdAt: { [Op.between]: [startRange, endRange] },
+        },
+        include: [
+          {
+            model: Customers,
+            attributes: ["customer_name", "tehsil", "type", "bags_potential", "region"],
+            as: "customer",
+            include: [{ model: City, as: "cityDetails", attributes: ["name"] }]
+          },
+        ],
+        order: [["createdAt", "ASC"]],
+      })
+    ]);
+
+    const dayInfoMap = new Map();
+    dayInfos.forEach((d) => {
+      const dDate = d.createdAt.toISOString().split("T")[0];
+      dayInfoMap.set(`${d.userId}_${dDate}`, d);
     });
 
     let newVisits = 0;
@@ -238,7 +268,7 @@ export const generateDailyVisitReport = async (req, res) => {
     let oldVisits = 0;
     let newPotentialCustomerVisits = 0;
 
-    // --- STEP 1: Pehle flat data map karein (As per your old logic) ---
+    // --- STEP 1: Process Flat Rows ---
     const flatData = visits.map((v) => {
       const visitDate = v.createdAt.toISOString().split("T")[0];
       const visitTime = v.createdAt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
@@ -248,10 +278,12 @@ export const generateDailyVisitReport = async (req, res) => {
       else if (v.purpose === "Old") oldVisits++;
       else if (v.purpose === "NewPotentialCustomer") newPotentialCustomerVisits++;
 
-      const dayReading = dayInfos.find((d) => d.createdAt.toISOString().split("T")[0] === visitDate);
+      const dayReading = dayInfoMap.get(`${v.user_id}_${visitDate}`);
+      const assignedUser = userMap[v.user_id];
 
       return {
         date: visitDate,
+        sales_person: assignedUser ? assignedUser.fullname : "Unknown",
         createdAt: v.createdAt,
         visit_time: visitTime,
         visit_purpose: v.purpose,
@@ -265,62 +297,75 @@ export const generateDailyVisitReport = async (req, res) => {
         start_meter_reading: dayReading?.startReading || "N/A",
         start_day_time: dayReading ? dayReading.createdAt.toISOString() : null,
         photoUri: dayReading?.photoUri || null,
-        is_leave: dayReading?.is_leave || false, // 🆕 Integration
-        leave_status: dayReading?.is_leave ? (dayReading.status || "LEAVE") : "PRESENT", // 🆕 Integration
+        is_leave: dayReading ? dayReading.is_leave : false,
+        leave_status: dayReading?.is_leave ? (dayReading.status || "LEAVE") : "PRESENT",
         visit_location: { lat: v.latitude, lng: v.longitude },
         start_day_location: dayReading ? { lat: dayReading.location_latitude, lng: dayReading.location_longitude } : null,
       };
     });
 
-    // --- STEP 2: Grouping Logic (Keeping it 100% same structure) ---
+    // --- STEP 2: Structural Grouping (Fix: Group by Date AND User to prevent reading overrides) ---
     const groupedReport = [];
 
-    // Pehle visits se data bharo (Aapka original loop)
     flatData.forEach((item) => {
-      let existingGroup = groupedReport.find((g) => g.date === item.date);
+      // Date aur Sales Person dono match hone chahiye unique group ke liye
+      let existingGroup = groupedReport.find(
+        (g) => g.date === item.date && g.sales_person === item.sales_person
+      );
+
       if (existingGroup) {
         existingGroup.visits.push(item);
       } else {
         groupedReport.push({
           date: item.date,
+          sales_person: item.sales_person, // Add identifier here
           meter_reading: item.start_meter_reading,
           photoUri: item.photoUri,
           start_location: item.start_day_location,
           start_time: item.start_day_time,
-          is_leave: item.is_leave,       // 🆕 Portal use kar sakta hai
-          leave_status: item.leave_status, // 🆕 Portal use kar sakta hai
+          is_leave: item.is_leave,
+          leave_status: item.leave_status,
           visits: [item],
         });
       }
     });
 
-    // 🆕 CRITICAL FIX: Wo din bhi add karein jin par sirf LEAVE thi par koi VISIT nahi thi
+    // --- STEP 3: Inject Day Start Artifacts for Empty Days ---
     dayInfos.forEach((day) => {
       const dDate = day.createdAt.toISOString().split("T")[0];
-      let existingGroup = groupedReport.find((g) => g.date === dDate);
+      const assignedUser = userMap[day.userId];
+      const sPersonName = assignedUser ? assignedUser.fullname : "Unknown";
 
-      if (!existingGroup && day.is_leave) {
+      // Match check both date and sales person context
+      let existingGroup = groupedReport.find(
+        (g) => g.date === dDate && g.sales_person === sPersonName
+      );
+
+      if (!existingGroup) {
         groupedReport.push({
           date: dDate,
+          sales_person: sPersonName,
           meter_reading: day.startReading || "N/A",
           photoUri: day.photoUri || null,
           start_location: { lat: day.location_latitude, lng: day.location_longitude },
           start_time: day.createdAt.toISOString(),
-          is_leave: true,
-          leave_status: day.status || "LEAVE",
-          visits: [], // Empty visits taake portal crash na ho
+          is_leave: day.is_leave,
+          leave_status: day.is_leave ? (day.status || "LEAVE") : "PRESENT",
+          visits: [],
         });
       }
     });
 
-    // Dates sort karein (Latest first)
     groupedReport.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    // 4. Response
+    // Fix conditional check using explicitly set flag 'isFilteredByNames'
+    const selectedUsersMeta = isFilteredByNames
+      ? users.map(u => u.fullname).join(", ")
+      : "All Users";
+
     return res.status(200).json({
       meta: {
-        sales_person: fullname,
-        region: user.region || "N/A",
+        selected_users: selectedUsersMeta,
         from_date: fromDate,
         to_date: toDate,
         total_visits: visits.length,
@@ -328,12 +373,12 @@ export const generateDailyVisitReport = async (req, res) => {
         mature: matureVisits,
         old: oldVisits,
         newPotentialCustomer: newPotentialCustomerVisits,
-        designation: designation,
       },
       report: groupedReport,
     });
+
   } catch (error) {
-    console.error("API Error:", error);
+    console.error("API Error in Multi-Select Engine:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -803,64 +848,97 @@ export const generateMeterReadingReport = async (req, res) => {
 
 export const generateVisitVerificationReport = async (req, res) => {
   try {
+    const fromDate = req.query.fromDate;
+    const toDate = req.query.toDate;
 
+    // Support both standardized query formats safely to accommodate Axios array serialization
+    const rawNames = req.query.names || req.query['names[]'];
 
-
-    const { name, fromDate, toDate } = req.query;
-
-    // 1. Validation Check
-    if (!name || !fromDate || !toDate) {
-      return res.status(400).json({ error: "Name, From Date, and To Date are all required" });
+    // 1. Structural Validation Target Check
+    if (!fromDate || !toDate) {
+      return res.status(400).json({ error: "From Date and To Date parameters are required" });
     }
 
-    // 2. Target User Fetch (With Associated City Details)
-    const user = await User.findOne({
-      where: { name: name },
+    let userWhereCondition = {};
+    let isFilteredByNames = false;
+
+    if (rawNames && rawNames !== "All" && rawNames !== "all" && rawNames !== 'All Users') {
+      let namesArray = [];
+      if (Array.isArray(rawNames)) {
+        namesArray = rawNames;
+      } else if (typeof rawNames === "string") {
+        namesArray = rawNames.split(",").map(n => n.trim());
+      }
+
+      if (namesArray.length > 0 && !namesArray.includes('All')) {
+        // Dropdown identifier explicit target on 'name' key string metrics
+        userWhereCondition = { name: { [Op.in]: namesArray } };
+        isFilteredByNames = true;
+      }
+    }
+
+    // 2. Fetch target users mapping matrix
+    const users = await User.findAll({
+      where: userWhereCondition,
       include: [{ model: City, as: "cityDetails", attributes: ["name"] }],
     });
 
-    if (!user) {
-      return res.status(404).json({ error: "Requested Sales Person user not found" });
+    if (!users || users.length === 0) {
+      return res.status(404).json({ error: "No matching target sales force users found in execution stack" });
     }
 
-    const user_id = user.id;
-
-    // 3. Extract Attendance Metrics (Startday Logs via 'userId')
-    const dayInfos = await Startday.findAll({
-      where: {
-        userId: user_id, // Matching the camelCase model attribute
-        createdAt: { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] },
-      },
-      attributes: [
-        "startReading", "photoUri", "createdAt",
-        "location_latitude", "location_longitude",
-        "is_leave", "status"
-      ],
+    // Allocate an O(1) space tracking object mapping database sequence identifiers
+    const userMap = {};
+    const userIds = users.map(u => {
+      userMap[u.id] = u;
+      return u.id;
     });
 
-    // 4. Extract Visit Records with Nested Customer Matrix
-    const visits = await Visits.findAll({
-      where: {
-        user_id: user_id, // Matching explicitly documented foreign key
-        createdAt: { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] },
-      },
-      include: [
-        {
-          model: Customers,
-          as: "customer",
-          attributes: ["customer_name", "tehsil", "type", "bags_potential", "region", "latitude", "longitude"],
-          include: [{ model: City, as: "cityDetails", attributes: ["name"] }]
+    // Isolate timestamps constraints strictly to timezone-neutral bounds
+    const startRange = new Date(`${fromDate}T00:00:00.000Z`);
+    const endRange = new Date(`${toDate}T23:59:59.999Z`);
+
+    // 3. Extract Core Relational Matrices in Non-blocking Concurrent Threads
+    const [dayInfos, visits] = await Promise.all([
+      Startday.findAll({
+        where: {
+          userId: { [Op.in]: userIds },
+          createdAt: { [Op.between]: [startRange, endRange] },
         },
-      ],
-      order: [["createdAt", "ASC"]],
+        attributes: [
+          "userId", "startReading", "photoUri", "createdAt",
+          "location_latitude", "location_longitude", "is_leave", "status"
+        ],
+      }),
+      Visits.findAll({
+        where: {
+          user_id: { [Op.in]: userIds },
+          createdAt: { [Op.between]: [startRange, endRange] },
+        },
+        include: [
+          {
+            model: Customers,
+            as: "customer",
+            attributes: ["customer_name", "tehsil", "type", "bags_potential", "region", "latitude", "longitude"],
+            include: [{ model: City, as: "cityDetails", attributes: ["name"] }]
+          },
+        ],
+        order: [["createdAt", "ASC"]],
+      })
+    ]);
+
+    // Fast-lookup mapping index strategy execution using composite operational keys
+    const dayInfoMap = new Map();
+    dayInfos.forEach((d) => {
+      const dDate = d.createdAt.toISOString().split("T")[0];
+      dayInfoMap.set(`${d.userId}_${dDate}`, d);
     });
 
-    // Counter Accumulators
     let verifiedCount = 0;
     let mismatchCount = 0;
     let unverifiedCount = 0;
 
-    // --- STEP 1: Process and Verify Each Record Log ---
+    // --- STEP 1: Process and Verify Spatial Metric Logs ---
     const flatData = visits.map((v) => {
       const visitDate = v.createdAt.toISOString().split("T")[0];
       const visitTime = v.createdAt.toLocaleTimeString("en-US", {
@@ -869,13 +947,12 @@ export const generateVisitVerificationReport = async (req, res) => {
         hour12: true
       });
 
-      // Parse Floats safely to secure geo-math operations
       const userLat = parseFloat(v.latitude);
       const userLng = parseFloat(v.longitude);
       const custLat = v.customer?.latitude ? parseFloat(v.customer.latitude) : null;
       const custLng = v.customer?.longitude ? parseFloat(v.customer.longitude) : null;
 
-      // Execute Haversine Distance Calculation Engine
+      // Distance optimization computation sequence execution
       const distanceInMeters = getDistanceInMeters(userLat, userLng, custLat, custLng);
 
       let verificationFlag = "Unverified";
@@ -884,7 +961,7 @@ export const generateVisitVerificationReport = async (req, res) => {
       if (distanceInMeters !== null && !isNaN(distanceInMeters)) {
         distanceString = `${distanceInMeters.toFixed(1)}m`;
 
-        // Strict 100-Meter Boundary Condition Rule
+        // Spatial geo-fencing constraint logic checks
         if (distanceInMeters <= 100) {
           verificationFlag = "Verified";
           verifiedCount++;
@@ -893,16 +970,15 @@ export const generateVisitVerificationReport = async (req, res) => {
           mismatchCount++;
         }
       } else {
-        unverifiedCount++; // Fallback case if customer table maps missing lat/lng coordinates
+        unverifiedCount++; 
       }
 
-      // Cross reference current date group attendance log
-      const dayReading = dayInfos.find(
-        (d) => d.createdAt.toISOString().split("T")[0] === visitDate
-      );
+      const dayReading = dayInfoMap.get(`${v.user_id}_${visitDate}`);
+      const assignedUser = userMap[v.user_id];
 
       return {
         date: visitDate,
+        sales_person: assignedUser ? assignedUser.fullname : "Unknown",
         visit_id: v.id,
         visit_time: visitTime,
         visit_purpose: v.purpose || "N/A",
@@ -914,70 +990,76 @@ export const generateVisitVerificationReport = async (req, res) => {
         bags_potential: v.customer?.bags_potential || 0,
         region: v.customer?.region || "N/A",
 
-        // Spatial Data & Flag Elements
         user_coordinates: { lat: userLat, lng: userLng },
         customer_coordinates: { lat: custLat, lng: custLng },
         calculated_distance: distanceString,
         verification_status: verificationFlag,
 
-        // Attendance data context mapping
         start_meter_reading: dayReading?.startReading || "N/A",
         photoUri: dayReading?.photoUri || null,
-        is_leave: dayReading?.is_leave || false,
+        is_leave: dayReading ? dayReading.is_leave : false,
         leave_status: dayReading?.is_leave ? (dayReading.status || "LEAVE") : "PRESENT"
-        // leave_reason: dayReading?.leave_reason || ""
       };
     });
 
-    // --- STEP 2: Array Structural Grouping Logic ---
+    // --- STEP 2: Structural Grouping Logic (Composite Unique Constraints) ---
     const groupedReport = [];
 
-    // Push standard mapped array rows into group brackets
     flatData.forEach((item) => {
-      let existingGroup = groupedReport.find((g) => g.date === item.date);
+      // Group targeting enforces absolute grouping isolation by both Date AND Sales Person name parameters
+      let existingGroup = groupedReport.find(
+        (g) => g.date === item.date && g.sales_person === item.sales_person
+      );
+
       if (existingGroup) {
         existingGroup.visits.push(item);
       } else {
         groupedReport.push({
           date: item.date,
+          sales_person: item.sales_person,
           meter_reading: item.start_meter_reading,
           photoUri: item.photoUri,
           is_leave: item.is_leave,
           leave_status: item.leave_status,
-          // leave_reason: item.leave_reason,
           visits: [item],
         });
       }
     });
 
-    // Inject empty/leave state days that contain zero field visit attempts
+    // --- STEP 3: Inject Empty Day States (Leaves / Present logs without field entries) ---
     dayInfos.forEach((day) => {
       const dDate = day.createdAt.toISOString().split("T")[0];
-      let existingGroup = groupedReport.find((g) => g.date === dDate);
+      const assignedUser = userMap[day.userId];
+      const sPersonName = assignedUser ? assignedUser.fullname : "Unknown";
+
+      let existingGroup = groupedReport.find(
+        (g) => g.date === dDate && g.sales_person === sPersonName
+      );
 
       if (!existingGroup) {
         groupedReport.push({
           date: dDate,
+          sales_person: sPersonName,
           meter_reading: day.startReading || "N/A",
           photoUri: day.photoUri || null,
           is_leave: day.is_leave,
           leave_status: day.is_leave ? (day.status || "LEAVE") : "PRESENT",
-          // leave_reason: day.leave_reason || "",
-          visits: [], // Safe mapping wrapper arrays to protect frontend UI maps
+          visits: [], // Structural interface safety array map preservation
         });
       }
     });
 
-    // Order mapping sequence down chronologically
     groupedReport.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    // 5. Structure Final Output Payload JSON Response Object
+    // Evaluate conditional metrics definitions string allocations safely
+    const selectedUsersMeta = isFilteredByNames 
+      ? users.map(u => u.fullname).join(", ") 
+      : "All Users";
+
+    // 5. Structure Output Data Payload standard specifications
     return res.status(200).json({
       meta: {
-        sales_person: user.fullname,
-        designation: user.designation || "N/A",
-        region: user.region || "N/A",
-        base_city: user.cityDetails?.name || "N/A",
+        selected_users: selectedUsersMeta,
         filter_period: { from: fromDate, to: toDate },
         metrics: {
           total_visits: visits.length,
