@@ -2,8 +2,9 @@ import Visits from "../models/visits.model.js";
 import User from "../models/User.js";
 import Startday from "../models/startday.model.js";
 import Customers from "../models/customers.model.js";
+import Designation from "../models/designations.model.js"
 import City from "../models/City.js";
-import { Op ,fn , col} from "sequelize";
+import { Op, fn, col } from "sequelize";
 import { getDistanceInMeters } from '../utils/geoHelper.js'
 
 
@@ -970,7 +971,7 @@ export const generateVisitVerificationReport = async (req, res) => {
           mismatchCount++;
         }
       } else {
-        unverifiedCount++; 
+        unverifiedCount++;
       }
 
       const dayReading = dayInfoMap.get(`${v.user_id}_${visitDate}`);
@@ -1052,8 +1053,8 @@ export const generateVisitVerificationReport = async (req, res) => {
     groupedReport.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     // Evaluate conditional metrics definitions string allocations safely
-    const selectedUsersMeta = isFilteredByNames 
-      ? users.map(u => u.fullname).join(", ") 
+    const selectedUsersMeta = isFilteredByNames
+      ? users.map(u => u.fullname).join(", ")
       : "All Users";
 
     // 5. Structure Output Data Payload standard specifications
@@ -1080,42 +1081,42 @@ export const generateVisitVerificationReport = async (req, res) => {
 
 // VISIT COUNT REPORT
 export const getVisitCountReport = async (req, res) => {
-    try {
-        const { names, fromDate, toDate } = req.query;
+  try {
+    const { names, fromDate, toDate } = req.query;
 
-        // 1. Base Criteria for Date Boundaries
-        if (!fromDate || !toDate) {
-            return res.status(400).json({ 
-                success: false, 
-                message: "Missing mandatory fields: fromDate and toDate are required." 
-            });
-        }
+    // 1. Base Criteria for Date Boundaries
+    if (!fromDate || !toDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing mandatory fields: fromDate and toDate are required."
+      });
+    }
 
-        const visitWhereClause = {
-            date: {
-                [Op.between]: [fromDate, toDate]
-            }
-        };
+    const visitWhereClause = {
+      date: {
+        [Op.between]: [fromDate, toDate]
+      }
+    };
 
-        // 2. Dynamic Scope Resolution for User Filters
-        // Handling both array inputs and string formats coming from the frontend safely
-        if (names && names !== 'All') {
-            const parsedNames = Array.isArray(names) ? names : [names];
-            if (parsedNames.length > 0 && !parsedNames.includes('all_users')) {
-                // First resolve User IDs from their unique names to optimize query indexing
-                const resolvedUsers = await User.findAll({
-                    where: { name: { [Op.in]: parsedNames } },
-                    attributes: ['id'],
-                    raw: true
-                });
-                
-                const userIds = resolvedUsers.map(u => u.id);
-                visitWhereClause.user_id = { [Op.in]: userIds };
-            }
-        }
+    // 2. Dynamic Scope Resolution for User Filters
+    if (names && names !== 'All') {
+      // Frontend se agar comma-separated string aye (e.g., "hafiz.zia,ali.raza") to use array banayein
+      const parsedNames = typeof names === 'string' ? names.split(',') : (Array.isArray(names) ? names : [names]);
 
-        // 3. High Performance Aggregation Layer
-        // GROUP BY executed on database storage layer to bypass memory overflow bottlenecks
+      if (parsedNames.length > 0 && !parsedNames.includes('all_users')) {
+        const resolvedUsers = await User.findAll({
+          where: { name: { [Op.in]: parsedNames } },
+          attributes: ['id'],
+          raw: true
+        });
+
+        const userIds = resolvedUsers.map(u => u.id);
+        visitWhereClause.user_id = { [Op.in]: userIds };
+      }
+    }
+
+    
+   // 3. High Performance Aggregation Layer
         const reportMetrics = await Visits.findAll({
             where: visitWhereClause,
             attributes: [
@@ -1128,29 +1129,39 @@ export const getVisitCountReport = async (req, res) => {
                 {
                     model: User,
                     as: 'user',
-                    attributes: ['id', 'name', 'fullname']
+                    attributes: ['id', 'name', 'fullname', 'designationId'],
+                    include: [
+                        {
+                            model: Designation,
+                            as: 'designationDetails', 
+                            attributes: ['id', 'designation'] // CRITICAL: Tumhare model mein 'name' nahi, column ka naam 'designation' hai
+                        }
+                    ]
                 },
                 {
                     model: Customers,
                     as: 'customer',
                     attributes: ['id', 'customer_name', 'tehsil', 'area']
-                }
+                },
             ],
             group: [
                 'Visits.user_id', 
                 'Visits.customer_id', 
                 'user.id', 
+                // FIXED: Explicit nested model hierarchy array representation
+                'user.designationDetails.id', 
                 'customer.id'
             ],
-            order: [[fn('COUNT', col('Visits.id')), 'DESC']], // Target high performance metrics on top
-            // raw: true, // Use if you want pure object layout, removed here to keep instances clean
+            order: [[fn('COUNT', col('Visits.id')), 'DESC']],
         });
 
-        // 4. Data Sanitization & Formatting
+   // 4. Data Sanitization & Formatting
         const formattedReport = reportMetrics.map(metric => {
             const row = metric.get({ plain: true });
             return {
                 sales_person: row.user?.fullname || row.user?.name || "N/A",
+                // FIXED: Accurate navigation pathway based on your association mapping
+                designation: row.user?.designationDetails?.designation || "N/A", 
                 customer_name: row.customer?.customer_name || "N/A",
                 tehsil: row.customer?.tehsil || "N/A",
                 area: row.customer?.area || "N/A",
@@ -1159,18 +1170,18 @@ export const getVisitCountReport = async (req, res) => {
             };
         });
 
-        return res.status(200).json({
-            success: true,
-            total_records: formattedReport.length,
-            report: formattedReport
-        });
+    return res.status(200).json({
+      success: true,
+      total_records: formattedReport.length,
+      report: formattedReport
+    });
 
-    } catch (error) {
-        console.error("CRITICAL ERROR IN VISIT COUNT REPORT:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Internal server error execution failing inside calculation blocks.",
-            error: error.message
-        });
-    }
+  } catch (error) {
+    console.error("CRITICAL ERROR IN VISIT COUNT REPORT:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error execution failing inside calculation blocks.",
+      error: error.message
+    });
+  }
 };
