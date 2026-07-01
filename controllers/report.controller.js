@@ -1115,60 +1115,61 @@ export const getVisitCountReport = async (req, res) => {
       }
     }
 
-    
-   // 3. High Performance Aggregation Layer
-        const reportMetrics = await Visits.findAll({
-            where: visitWhereClause,
-            attributes: [
-                'user_id',
-                'customer_id',
-                [fn('COUNT', col('Visits.id')), 'visit_count'],
-                [fn('MAX', col('date')), 'last_visit_date']
-            ],
-            include: [
-                {
-                    model: User,
-                    as: 'user',
-                    attributes: ['id', 'name', 'fullname', 'designationId'],
-                    include: [
-                        {
-                            model: Designation,
-                            as: 'designationDetails', 
-                            attributes: ['id', 'designation'] // CRITICAL: Tumhare model mein 'name' nahi, column ka naam 'designation' hai
-                        }
-                    ]
-                },
-                {
-                    model: Customers,
-                    as: 'customer',
-                    attributes: ['id', 'customer_name', 'tehsil', 'area']
-                },
-            ],
-            group: [
-                'Visits.user_id', 
-                'Visits.customer_id', 
-                'user.id', 
-                // FIXED: Explicit nested model hierarchy array representation
-                'user.designationDetails.id', 
-                'customer.id'
-            ],
-            order: [[fn('COUNT', col('Visits.id')), 'DESC']],
-        });
 
-   // 4. Data Sanitization & Formatting
-        const formattedReport = reportMetrics.map(metric => {
-            const row = metric.get({ plain: true });
-            return {
-                sales_person: row.user?.fullname || row.user?.name || "N/A",
-                // FIXED: Accurate navigation pathway based on your association mapping
-                designation: row.user?.designationDetails?.designation || "N/A", 
-                customer_name: row.customer?.customer_name || "N/A",
-                tehsil: row.customer?.tehsil || "N/A",
-                area: row.customer?.area || "N/A",
-                visit_count: parseInt(row.visit_count, 10) || 0,
-                last_visit: row.last_visit_date || "N/A"
-            };
-        });
+    // 3. High Performance Aggregation Layer
+    const reportMetrics = await Visits.findAll({
+      where: visitWhereClause,
+      attributes: [
+        'user_id',
+        'customer_id',
+        [fn('COUNT', col('Visits.id')), 'visit_count'],
+        [fn('MAX', col('date')), 'last_visit_date']
+      ],
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'name', 'fullname', 'designationId'],
+          include: [
+            {
+              model: Designation,
+              as: 'designationDetails',
+              attributes: ['id', 'designation'] // CRITICAL: Tumhare model mein 'name' nahi, column ka naam 'designation' hai
+            }
+          ]
+        },
+        {
+          model: Customers,
+          as: 'customer',
+          attributes: ['id', 'customer_name', 'tehsil', 'area', 'type']
+        },
+      ],
+      group: [
+        'Visits.user_id',
+        'Visits.customer_id',
+        'user.id',
+        // FIXED: Explicit nested model hierarchy array representation
+        'user.designationDetails.id',
+        'customer.id'
+      ],
+      order: [[fn('COUNT', col('Visits.id')), 'DESC']],
+    });
+
+    // 4. Data Sanitization & Formatting
+    const formattedReport = reportMetrics.map(metric => {
+      const row = metric.get({ plain: true });
+      return {
+        sales_person: row.user?.fullname || row.user?.name || "N/A",
+        // FIXED: Accurate navigation pathway based on your association mapping
+        designation: row.user?.designationDetails?.designation || "N/A",
+        customer_name: row.customer?.customer_name || "N/A",
+        tehsil: row.customer?.tehsil || "N/A",
+        area: row.customer?.area || "N/A",
+        customer_type: row.customer?.type || "N/A",
+        visit_count: parseInt(row.visit_count, 10) || 0,
+        last_visit: row.last_visit_date || "N/A"
+      };
+    });
 
     return res.status(200).json({
       success: true,
