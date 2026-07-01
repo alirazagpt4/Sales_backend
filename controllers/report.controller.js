@@ -1080,11 +1080,11 @@ export const generateVisitVerificationReport = async (req, res) => {
 
 
 // VISIT COUNT REPORT
+// VISIT COUNT REPORT
 export const getVisitCountReport = async (req, res) => {
   try {
     const { names, fromDate, toDate } = req.query;
 
-    // 1. Base Criteria for Date Boundaries
     if (!fromDate || !toDate) {
       return res.status(400).json({
         success: false,
@@ -1098,9 +1098,7 @@ export const getVisitCountReport = async (req, res) => {
       }
     };
 
-    // 2. Dynamic Scope Resolution for User Filters
     if (names && names !== 'All') {
-      // Frontend se agar comma-separated string aye (e.g., "hafiz.zia,ali.raza") to use array banayein
       const parsedNames = typeof names === 'string' ? names.split(',') : (Array.isArray(names) ? names : [names]);
 
       if (parsedNames.length > 0 && !parsedNames.includes('all_users')) {
@@ -1115,7 +1113,6 @@ export const getVisitCountReport = async (req, res) => {
       }
     }
 
-
     // 3. High Performance Aggregation Layer
     const reportMetrics = await Visits.findAll({
       where: visitWhereClause,
@@ -1123,7 +1120,9 @@ export const getVisitCountReport = async (req, res) => {
         'user_id',
         'customer_id',
         [fn('COUNT', col('Visits.id')), 'visit_count'],
-        [fn('MAX', col('date')), 'last_visit_date']
+        [fn('MAX', col('date')), 'last_visit_date'],
+        // FIXED: Wrap purpose in MAX aggregate to comply with ONLY_FULL_GROUP_BY
+        [fn('MAX', col('Visits.purpose')), 'latest_purpose']
       ],
       include: [
         {
@@ -1134,13 +1133,14 @@ export const getVisitCountReport = async (req, res) => {
             {
               model: Designation,
               as: 'designationDetails',
-              attributes: ['id', 'designation'] // CRITICAL: Tumhare model mein 'name' nahi, column ka naam 'designation' hai
+              attributes: ['id', 'designation']
             }
           ]
         },
         {
           model: Customers,
           as: 'customer',
+          // CRITICAL fix: 'type' database field issue standard check
           attributes: ['id', 'customer_name', 'tehsil', 'area', 'type']
         },
       ],
@@ -1148,7 +1148,6 @@ export const getVisitCountReport = async (req, res) => {
         'Visits.user_id',
         'Visits.customer_id',
         'user.id',
-        // FIXED: Explicit nested model hierarchy array representation
         'user.designationDetails.id',
         'customer.id'
       ],
@@ -1160,12 +1159,13 @@ export const getVisitCountReport = async (req, res) => {
       const row = metric.get({ plain: true });
       return {
         sales_person: row.user?.fullname || row.user?.name || "N/A",
-        // FIXED: Accurate navigation pathway based on your association mapping
         designation: row.user?.designationDetails?.designation || "N/A",
         customer_name: row.customer?.customer_name || "N/A",
         tehsil: row.customer?.tehsil || "N/A",
         area: row.customer?.area || "N/A",
         customer_type: row.customer?.type || "N/A",
+        // Map aggregate value safely
+        visit_purpose: row.latest_purpose || 'N/A',
         visit_count: parseInt(row.visit_count, 10) || 0,
         last_visit: row.last_visit_date || "N/A"
       };
