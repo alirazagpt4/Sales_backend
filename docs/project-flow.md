@@ -119,6 +119,7 @@ All report endpoints are read-only aggregations over `Visits` + `Startday` + `Cu
 | `meterreading-report` | One user's daily start meter readings + photo + present/leave status. |
 | `visit-verification-report` | GPS cross-check: distance between visit coords and customer's stored coords; flags Verified / Location Mismatch / Unverified. |
 | `visit-count-report` | Aggregated visit counts per (salesperson, customer) with last visit date and latest purpose. |
+| `sales-person-wise-dvr-report` | One salesperson's daily vehicle-run: per-day meter reading vs. previous, `daily_km` delta (baseline carried across leave/zero-reading days), visited customers/cities, visit count, and `total_km_traveled`. |
 
 ### g. KPIs
 `GET /api/kpis` → totals for users, customers, visits, and "active users"

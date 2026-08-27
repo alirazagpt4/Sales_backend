@@ -74,6 +74,15 @@ Update the corresponding `models/*.model.js` **and** the migration. Do not rely 
 - `POST /api/users/register` has no auth middleware despite the README claiming admin-only.
 - `routes/sales.js` is imported in `server.js` but never mounted.
 - `GET /api/users/protected` is shadowed by `GET /api/users/:id` and is unreachable.
+- `routes/report.routes.js` imports `isAdmin` but every report route is gated by
+  `authenticateToken` only — any logged-in user can pull any salesperson's report by name.
+  `GET /api/reports/test-route` has no auth at all.
+- `report.controller.js` mixes date filtering: most reports use string-interpolated
+  `Op.between` on `createdAt`, `generateDailyVisitReport` / `generateVisitVerificationReport`
+  build UTC `Date` bounds, and `getVisitCountReport` filters on the `visits.date` column.
+- `generateSalesPersonWiseDvrReport` deliberately fetches *all* of a user's `Startday` rows
+  up to `toDate` (no lower bound) to carry a "last valid meter reading" baseline across
+  leave / zero-reading days — do not add a `fromDate` floor to that query.
 
 ## When adding an endpoint
 

@@ -86,6 +86,7 @@ All require **Auth**. All take `fromDate` & `toDate` (`YYYY-MM-DD`) unless noted
 | GET | `/api/reports/meterreading-report` | `name` (fullname or login name), `fromDate`, `toDate` | One user's daily start readings, photo, present/leave. |
 | GET | `/api/reports/visit-verification-report` | `fromDate`, `toDate`, `names` | GPS check: Haversine distance between visit coords and customer coords; flags `Verified` (≤100 m) / `Location Mismatch` / `Unverified`. |
 | GET | `/api/reports/visit-count-report` | `fromDate`, `toDate`, `names` | Aggregated visit count per (salesperson, customer) with `last_visit` and `latest_purpose`. Filters on `visits.date`. |
+| GET | `/api/reports/sales-person-wise-dvr-report` | `name`/`names` (single fullname or login name), `fromDate`, `toDate` | One salesperson's daily vehicle-run (DVR): per-day meter reading, previous reading, `daily_km` (delta vs. last valid non-leave reading, carried across leave days), visited customers/cities, and visit count. `meta` has `total_km_traveled`. |
 | GET | `/api/reports/test-route` | — | Returns `"Router is working!"` (no auth). |
 
 ---
