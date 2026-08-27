@@ -1185,3 +1185,158 @@ export const getVisitCountReport = async (req, res) => {
     });
   }
 };
+
+
+
+
+
+// Sale Person Wise DVR Report Controller (Fully Fixed & Optimized)
+export const generateSalesPersonWiseDvrReport = async (req, res) => {
+  try {
+    // 1. Query Parameters Capture (name ya names dono ko accept karega)
+    const nameParam = req.query.name || req.query.names;
+    const { fromDate, toDate } = req.query;
+
+    if (!nameParam || !fromDate || !toDate) {
+      return res.status(400).json({ error: "Name, From Date, and To Date are required" });
+    }
+
+    // 2. Sales Person Resolution
+    const user = await User.findOne({
+      where: {
+        [Op.or]: [{ name: nameParam }, { fullname: nameParam }]
+      },
+      include: [{ model: City, as: "cityDetails", attributes: ["name"] }],
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "Sales Person not found" });
+    }
+
+    const userId = user.id;
+
+    // 3. User ki toDate tk ki tamaam Startday Readings fetch karein (Chronological order)
+    const allStartDays = await Startday.findAll({
+      where: {
+        userId: userId,
+        createdAt: { [Op.lte]: `${toDate} 23:59:59` }
+      },
+      attributes: ["id", "userId", "startReading", "photoUri", "is_leave", "status", "createdAt"],
+      order: [["createdAt", "ASC"]]
+    });
+
+    // 4. Target Date Range ki Visits Fetch Karein
+    const visits = await Visits.findAll({
+      where: {
+        user_id: userId,
+        createdAt: { [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`] }
+      },
+      include: [
+        {
+          model: Customers,
+          as: "customer",
+          attributes: ["customer_name", "tehsil", "region"],
+          include: [{ model: City, as: "cityDetails", attributes: ["name"] }]
+        }
+      ],
+      order: [["createdAt", "ASC"]]
+    });
+
+    // 5. Group Visits by Date (YYYY-MM-DD)
+    const visitsByDateMap = new Map();
+    visits.forEach((v) => {
+      const vDate = v.createdAt.toISOString().split("T")[0];
+      if (!visitsByDateMap.has(vDate)) {
+        visitsByDateMap.set(vDate, []);
+      }
+      visitsByDateMap.get(vDate).push({
+        customer_name: v.customer?.customer_name || "N/A",
+        city: v.customer?.cityDetails?.name || v.customer?.tehsil || "N/A",
+        purpose: v.purpose
+      });
+    });
+
+    // 6. Selected Date Range ke records filter karein
+    const rangeStartDays = allStartDays.filter((sd) => {
+      const dStr = sd.createdAt.toISOString().split("T")[0];
+      return dStr >= fromDate && dStr <= toDate;
+    });
+
+    // 7. Last Valid Reading state tracker (Fixes the 0 Leave Jump Bug)
+    let lastValidReading = null;
+
+    if (allStartDays.length > 0 && rangeStartDays.length > 0) {
+      const firstRangeDate = rangeStartDays[0].createdAt;
+      // Filter out non-zero readings before current selected range
+      const priorEntries = allStartDays.filter(
+        (sd) => sd.createdAt < firstRangeDate && parseFloat(sd.startReading) > 0
+      );
+      if (priorEntries.length > 0) {
+        lastValidReading = parseFloat(priorEntries[priorEntries.length - 1].startReading);
+      }
+    }
+
+    // 8. Output arrays aur calculations
+    const reportRows = [];
+    let cumulativeKm = 0;
+
+    // Report Loop Correction inside generateSalesPersonWiseDvrReport
+    for (let i = 0; i < rangeStartDays.length; i++) {
+      const currentEntry = rangeStartDays[i];
+      const dateStr = currentEntry.createdAt.toISOString().split("T")[0];
+      const currentReading = parseFloat(currentEntry.startReading) || 0;
+
+      let dailyKm = 0;
+      let prevReadingForDisplay = lastValidReading || currentReading;
+
+      if (!currentEntry.is_leave && currentReading > 0) {
+        if (lastValidReading !== null && currentReading >= lastValidReading) {
+          dailyKm = currentReading - lastValidReading;
+          // Valid baseline tabhi update karein jab new reading greater or equal ho
+          lastValidReading = currentReading;
+        } else if (lastValidReading === null) {
+          lastValidReading = currentReading;
+        }
+        // Note: Agar currentReading < lastValidReading ho (typo case), 
+        // toh dailyKm = 0 rahega aur lastValidReading override nahi hogi.
+      }
+
+      cumulativeKm += dailyKm;
+
+      const dayVisits = visitsByDateMap.get(dateStr) || [];
+      const visitedCustomers = dayVisits.map((v) => v.customer_name);
+      const visitedCities = [...new Set(dayVisits.map((v) => v.city))];
+
+      reportRows.push({
+        date: dateStr,
+        meter_reading: currentReading,
+        previous_meter_reading: prevReadingForDisplay,
+        daily_km: dailyKm,
+        is_leave: currentEntry.is_leave || false,
+        status: currentEntry.is_leave ? (currentEntry.status || "LEAVE") : "PRESENT",
+        visited_customers: visitedCustomers,
+        visited_cities: visitedCities,
+        total_visits: dayVisits.length
+      });
+    }
+
+    // 9. Response Object Return
+    return res.status(200).json({
+      success: true,
+      meta: {
+        sales_person: user.fullname || user.name,
+        designation: user.designation || "N/A",
+        region: user.region || "N/A",
+        from_date: fromDate,
+        to_date: toDate,
+        total_km_traveled: cumulativeKm,
+        total_days_tracked: reportRows.length
+      },
+      report: reportRows
+    });
+
+  } catch (error) {
+    console.error("Sale Person Wise DVR Error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
