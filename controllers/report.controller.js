@@ -1080,7 +1080,6 @@ export const generateVisitVerificationReport = async (req, res) => {
 
 
 // VISIT COUNT REPORT
-// VISIT COUNT REPORT
 export const getVisitCountReport = async (req, res) => {
   try {
     const { names, fromDate, toDate } = req.query;

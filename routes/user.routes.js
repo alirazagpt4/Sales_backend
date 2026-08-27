@@ -2,7 +2,7 @@ import express from "express";
 const router = express.Router();
 import { authenticateToken, isAdmin, isSuperAdmin } from "../Middlewares/authMiddleware.js";
 
-import { createUser, loginUser, loginAdmin, getAllUsers, updateUser, deleteUser, viewUser, getMyTeamList } from "../controllers/User.controller.js";
+import { createUser, loginUser, loginAdmin, getAllUsers, updateUser, deleteUser, viewUser, getMyTeamList ,toggleUserStatus} from "../controllers/User.controller.js";
 
 // Route to create a new user
 router.post('/register', createUser);
@@ -36,5 +36,7 @@ router.get('/protected', authenticateToken, (req, res) => {
     });
 });
 
+
+router.patch('/toggle-status/:id', toggleUserStatus);
 
 export default router;

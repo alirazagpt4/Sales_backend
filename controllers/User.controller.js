@@ -97,6 +97,10 @@ export const loginUser = async (req, res) => {
             return res.status(401).json({ error: 'Invalid name or password.' });
         }
 
+        // User find karne ke baad
+        if (user.is_active === false || user.is_active === 0) {
+            return res.status(403).json({ error: 'Your account has been deactivated. Contact admin.' });
+        }
 
         // ⭐ YAHAN CHANGE KAREIN ⭐
         // 1. last_login update karna
@@ -189,6 +193,11 @@ export const getAllUsers = async (req, res) => {
         const search = req.query.search;
         const whereClause = {};
 
+        // Filter only if parameter explicitly passed
+        if (req.query.is_active !== undefined) {
+            whereClause.is_active = req.query.is_active === 'true' || req.query.is_active === '1';
+        }
+
         if (search) {
             whereClause[Op.or] = [
                 { name: { [Op.like]: `%${search}%` } },
@@ -205,7 +214,7 @@ export const getAllUsers = async (req, res) => {
             where: whereClause,
             limit: limit,
             offset: offset,
-            attributes: ['id', 'name', 'email', 'role', 'createdAt', 'designation', 'city_id', 'fullname', 'mobile_ph', 'whatsapp_ph', 'region', 'designationId', 'reportTo'], // Exclude password
+            attributes: ['id', 'name', 'email', 'role', 'createdAt', 'designation', 'city_id', 'fullname', 'mobile_ph', 'whatsapp_ph', 'region', 'designationId', 'reportTo', 'is_active'], // Exclude password
             include: [{
                 model: City, // Ya models.City (jo bhi import kiya ho)
                 as: 'cityDetails', // Wohi alias jo association.js mein diya tha
@@ -255,7 +264,8 @@ export const getAllUsers = async (req, res) => {
             designationId: user.designationId,
             designationDetails: user.designationDetails,
             manager: user.manager,
-            subordinates: user.subordinates
+            subordinates: user.subordinates,
+            is_active: user.is_active
         }));
         //
 
@@ -291,7 +301,8 @@ export const viewUser = async (req, res) => {
                 'fullname',
                 'mobile_ph',
                 'whatsapp_ph',
-                'region', // Agar aapne yeh field add kiya tha
+                'region',
+                'is_active' // Agar aapne yeh field add kiya tha
             ],
 
             // 🔑 City ka Naam laane ke liye include/association use karein
@@ -414,6 +425,7 @@ export const getMyTeamList = async (req, res) => {
         // 1. Database se saare users ka sirf ID, Name aur ReportTo mangwaein (Bina kisi join ke)
         // Yeh query bohot fast hoti hai kyunke joins zero hain
         const allUsers = await User.findAll({
+            where: { is_active: true },
             attributes: ['id', 'fullname', 'reportTo'],
             raw: true
         });
@@ -472,6 +484,34 @@ export const deleteUser = async (req, res) => {
 
 
 
+export const toggleUserStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { is_active } = req.body; // Expecting boolean: true or false
+
+        if (is_active === undefined) {
+            return res.status(400).json({ error: 'is_active status is required.' });
+        }
+
+        const user = await User.findByPk(id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        // Direct status update
+        user.is_active = is_active;
+        await user.save();
+
+        res.status(200).json({ 
+            message: `User has been ${is_active ? 'Activated' : 'Deactivated'} successfully.`,
+            is_active: user.is_active 
+        });
+
+    } catch (err) {
+        console.error('Error toggling user status:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
 
 
 
