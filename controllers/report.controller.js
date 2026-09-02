@@ -249,7 +249,7 @@ export const generateDailyVisitReport = async (req, res) => {
         include: [
           {
             model: Customers,
-            attributes: ["customer_name", "tehsil", "type", "bags_potential", "region"],
+            attributes: ["customer_name", "tehsil", "type", "bags_potential", "region", "contact"],
             as: "customer",
             include: [{ model: City, as: "cityDetails", attributes: ["name"] }]
           },
@@ -289,6 +289,7 @@ export const generateDailyVisitReport = async (req, res) => {
         visit_time: visitTime,
         visit_purpose: v.purpose,
         customer_name: v.customer?.customer_name || "N/A",
+        customer_phone: v.customer?.contact || "N/A",
         city: v.customer?.cityDetails?.name || "N/A",
         type: v.customer?.type || "N/A",
         tehsil: v.customer?.tehsil || "N/A",
@@ -782,65 +783,65 @@ export const generateMyReport = async (req, res) => {
 };
 
 
-export const generateMeterReadingReport = async (req, res) => {
-  try {
-    const { name, fromDate, toDate } = req.query;
+// export const generateMeterReadingReport = async (req, res) => {
+//   try {
+//     const { name, fromDate, toDate } = req.query;
 
-    if (!fromDate || !toDate) {
-      return res.status(400).json({ error: "Name, From Date, and To Date are all required" });
-    }
+//     if (!fromDate || !toDate) {
+//       return res.status(400).json({ error: "Name, From Date, and To Date are all required" });
+//     }
 
-    // 1. User find karein (Full Name match karne ke liye)
-    const user = await User.findOne({
-      where: {
-        [Op.or]: [
-          { fullname: name },
-          { name: name }
-        ]
-      },
-      attributes: ["id", "fullname", "name"]
-    });
+//     // 1. User find karein (Full Name match karne ke liye)
+//     const user = await User.findOne({
+//       where: {
+//         [Op.or]: [
+//           { fullname: name },
+//           { name: name }
+//         ]
+//       },
+//       attributes: ["id", "fullname", "name"]
+//     });
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
+//     if (!user) {
+//       return res.status(404).json({ error: "User not found" });
+//     }
 
-    // 2. Startday table se readings fetch karein
-    const readings = await Startday.findAll({
-      where: {
-        userId: user.id,
-        createdAt: {
-          [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`],
-        },
-      },
-      attributes: ["createdAt", "startReading", "photoUri", "is_leave", "status"],
-      order: [["createdAt", "DESC"]], // Latest dates pehle aayengi
-    });
+//     // 2. Startday table se readings fetch karein
+//     const readings = await Startday.findAll({
+//       where: {
+//         userId: user.id,
+//         createdAt: {
+//           [Op.between]: [`${fromDate} 00:00:00`, `${toDate} 23:59:59`],
+//         },
+//       },
+//       attributes: ["createdAt", "startReading", "photoUri", "is_leave", "status"],
+//       order: [["createdAt", "DESC"]], // Latest dates pehle aayengi
+//     });
 
-    // 3. Data ko format karein columns ke mutabiq
-    const reportData = readings.map((r) => ({
-      date: r.createdAt.toISOString().split("T")[0],
-      user_fullname: user.fullname || user.name,
-      meter_reading: r.is_leave ? "ON LEAVE" : (r.startReading || "N/A"),
-      picture: r.photoUri || null, // Image URL ya path
-      status: r.status || (r.is_leave ? "LEAVE" : "PRESENT")
-    }));
+//     // 3. Data ko format karein columns ke mutabiq
+//     const reportData = readings.map((r) => ({
+//       date: r.createdAt.toISOString().split("T")[0],
+//       user_fullname: user.fullname || user.name,
+//       meter_reading: r.is_leave ? "ON LEAVE" : (r.startReading || "N/A"),
+//       picture: r.photoUri || null, // Image URL ya path
+//       status: r.status || (r.is_leave ? "LEAVE" : "PRESENT")
+//     }));
 
-    return res.status(200).json({
-      success: true,
-      meta: {
-        total_records: reportData.length,
-        filter_user: user.fullname,
-        range: `${fromDate} to ${toDate}`
-      },
-      report: reportData
-    });
+//     return res.status(200).json({
+//       success: true,
+//       meta: {
+//         total_records: reportData.length,
+//         filter_user: user.fullname,
+//         range: `${fromDate} to ${toDate}`
+//       },
+//       report: reportData
+//     });
 
-  } catch (error) {
-    console.error("Meter Reading Report Error:", error);
-    res.status(500).json({ error: error.message });
-  }
-};
+//   } catch (error) {
+//     console.error("Meter Reading Report Error:", error);
+//     res.status(500).json({ error: error.message });
+//   }
+// };
 
 
 
