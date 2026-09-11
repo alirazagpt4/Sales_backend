@@ -1194,7 +1194,6 @@ export const getVisitCountReport = async (req, res) => {
 // Sale Person Wise DVR Report Controller (Fully Fixed & Optimized)
 export const generateSalesPersonWiseDvrReport = async (req, res) => {
   try {
-    // 1. Query Parameters Capture (name ya names dono ko accept karega)
     const nameParam = req.query.name || req.query.names;
     const { fromDate, toDate } = req.query;
 
@@ -1202,11 +1201,8 @@ export const generateSalesPersonWiseDvrReport = async (req, res) => {
       return res.status(400).json({ error: "Name, From Date, and To Date are required" });
     }
 
-    // 2. Sales Person Resolution
     const user = await User.findOne({
-      where: {
-        [Op.or]: [{ name: nameParam }, { fullname: nameParam }]
-      },
+      where: { [Op.or]: [{ name: nameParam }, { fullname: nameParam }] },
       include: [{ model: City, as: "cityDetails", attributes: ["name"] }],
     });
 
@@ -1216,17 +1212,14 @@ export const generateSalesPersonWiseDvrReport = async (req, res) => {
 
     const userId = user.id;
 
-    // 3. User ki toDate tk ki tamaam Startday Readings fetch karein (Chronological order)
+    // Poori history uthayein (koi upper date-limit nahi) — kyunke last selected
+    // din ka km nikalne ke liye humein toDate ke BAAD wali reading bhi chahiye ho sakti hai.
     const allStartDays = await Startday.findAll({
-      where: {
-        userId: userId,
-        createdAt: { [Op.lte]: `${toDate} 23:59:59` }
-      },
+      where: { userId },
       attributes: ["id", "userId", "startReading", "photoUri", "is_leave", "status", "createdAt"],
       order: [["createdAt", "ASC"]]
     });
 
-    // 4. Target Date Range ki Visits Fetch Karein
     const visits = await Visits.findAll({
       where: {
         user_id: userId,
@@ -1243,13 +1236,10 @@ export const generateSalesPersonWiseDvrReport = async (req, res) => {
       order: [["createdAt", "ASC"]]
     });
 
-    // 5. Group Visits by Date (YYYY-MM-DD)
     const visitsByDateMap = new Map();
     visits.forEach((v) => {
       const vDate = v.createdAt.toISOString().split("T")[0];
-      if (!visitsByDateMap.has(vDate)) {
-        visitsByDateMap.set(vDate, []);
-      }
+      if (!visitsByDateMap.has(vDate)) visitsByDateMap.set(vDate, []);
       visitsByDateMap.get(vDate).push({
         customer_name: v.customer?.customer_name || "N/A",
         city: v.customer?.cityDetails?.name || v.customer?.tehsil || "N/A",
@@ -1257,49 +1247,37 @@ export const generateSalesPersonWiseDvrReport = async (req, res) => {
       });
     });
 
-    // 6. Selected Date Range ke records filter karein
     const rangeStartDays = allStartDays.filter((sd) => {
       const dStr = sd.createdAt.toISOString().split("T")[0];
       return dStr >= fromDate && dStr <= toDate;
     });
 
-    // 7. Last Valid Reading state tracker (Fixes the 0 Leave Jump Bug)
-    let lastValidReading = null;
-
-    if (allStartDays.length > 0 && rangeStartDays.length > 0) {
-      const firstRangeDate = rangeStartDays[0].createdAt;
-      // Filter out non-zero readings before current selected range
-      const priorEntries = allStartDays.filter(
-        (sd) => sd.createdAt < firstRangeDate && parseFloat(sd.startReading) > 0
-      );
-      if (priorEntries.length > 0) {
-        lastValidReading = parseFloat(priorEntries[priorEntries.length - 1].startReading);
-      }
-    }
-
-    // 8. Output arrays aur calculations
     const reportRows = [];
     let cumulativeKm = 0;
 
-    // Report Loop Correction inside generateSalesPersonWiseDvrReport
     for (let i = 0; i < rangeStartDays.length; i++) {
       const currentEntry = rangeStartDays[i];
       const dateStr = currentEntry.createdAt.toISOString().split("T")[0];
       const currentReading = parseFloat(currentEntry.startReading) || 0;
 
+      const idxInAll = allStartDays.findIndex((sd) => sd.id === currentEntry.id);
+
       let dailyKm = 0;
-      let prevReadingForDisplay = lastValidReading || currentReading;
 
       if (!currentEntry.is_leave && currentReading > 0) {
-        if (lastValidReading !== null && currentReading >= lastValidReading) {
-          dailyKm = currentReading - lastValidReading;
-          // Valid baseline tabhi update karein jab new reading greater or equal ho
-          lastValidReading = currentReading;
-        } else if (lastValidReading === null) {
-          lastValidReading = currentReading;
+        // Leave / missing-reading wali entries ko SKIP karte hue agli VALID reading dhoondein
+        let nextValid = null;
+        for (let j = idxInAll + 1; j < allStartDays.length; j++) {
+          const candidate = allStartDays[j];
+          const candidateReading = parseFloat(candidate.startReading) || 0;
+          if (!candidate.is_leave && candidateReading > 0) {
+            nextValid = candidateReading;
+            break;
+          }
         }
-        // Note: Agar currentReading < lastValidReading ho (typo case), 
-        // toh dailyKm = 0 rahega aur lastValidReading override nahi hogi.
+        if (nextValid !== null && nextValid >= currentReading) {
+          dailyKm = nextValid - currentReading;
+        }
       }
 
       cumulativeKm += dailyKm;
@@ -1311,7 +1289,6 @@ export const generateSalesPersonWiseDvrReport = async (req, res) => {
       reportRows.push({
         date: dateStr,
         meter_reading: currentReading,
-        previous_meter_reading: prevReadingForDisplay,
         daily_km: dailyKm,
         is_leave: currentEntry.is_leave || false,
         status: currentEntry.is_leave ? (currentEntry.status || "LEAVE") : "PRESENT",
@@ -1321,7 +1298,6 @@ export const generateSalesPersonWiseDvrReport = async (req, res) => {
       });
     }
 
-    // 9. Response Object Return
     return res.status(200).json({
       success: true,
       meta: {
