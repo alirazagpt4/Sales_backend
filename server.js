@@ -4,7 +4,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 dotenv.config();
-import sequelize from'./config/db.js';
+import sequelize from './config/db.js';
 import salesRoutes from './routes/sales.js';
 // import User from './models/User.js';
 import userRoutes from './routes/user.routes.js';
@@ -32,20 +32,40 @@ app.use(express.static(path.join(path.resolve(), 'public')));
 app.use('/public', express.static(path.join(process.cwd(), 'uploads')));
 
 
-app.get('/' , (req , res) =>{
-     res.json({
-        message : "Sales App is Running perfectly"
-     })
+app.get('/', (req, res) => {
+    res.json({
+        message: "Sales App is Running perfectly"
+    })
 });
 
-app.use('/api/users' , userRoutes);
-app.use('/api' , startdayRoutes);
-app.use('/api/customers' , customersRoutes);
-app.use('/api/visits' , visitsRoutes);
-app.use('/api' , kpisRoutes);
-app.use('/api',reportsRoutes);
-app.use('/api/cities' , citiesRoutes);
-app.use('/api/designations' , designationsRoutes);
+
+// ================= HEALTH CHECK ROUTE =================
+app.get('/health', async (req, res) => {
+    try {
+        await sequelize.authenticate();
+        return res.status(200).json({
+            status: 'UP',
+            message: 'Server and Database are healthy',
+            timestamp: new Date().toISOString(),
+            uptime: `${Math.floor(process.uptime())}s`
+        });
+    } catch (error) {
+        return res.status(503).json({
+            status: 'DOWN',
+            message: 'Database connection failed',
+            error: error.message
+        });
+    }
+});
+
+app.use('/api/users', userRoutes);
+app.use('/api', startdayRoutes);
+app.use('/api/customers', customersRoutes);
+app.use('/api/visits', visitsRoutes);
+app.use('/api', kpisRoutes);
+app.use('/api', reportsRoutes);
+app.use('/api/cities', citiesRoutes);
+app.use('/api/designations', designationsRoutes);
 app.use('/api/items', itemsRoutes);
 app.use('/api/sale-orders', saleOrderRoutes);
 
@@ -53,20 +73,20 @@ app.use('/api/sale-orders', saleOrderRoutes);
 
 
 
-(async () =>{
-try {
-    await sequelize.authenticate()
-    // await sequelize.sync()
-    // .then(()=> console.log("user table ready"))
-    // .catch((err) => console.log("Error creating table:", err));
-    
-    console.log('Database connected successfully.');
+(async () => {
+    try {
+        await sequelize.authenticate()
+        // await sequelize.sync()
+        // .then(()=> console.log("user table ready"))
+        // .catch((err) => console.log("Error creating table:", err));
 
-    app.listen(PORT , ()=>{
-        console.log(`Server is running on port ${PORT}`);
-    })
-} catch (error) {
-    console.error('Unable to connect to the database:', error);
-}
+        console.log('Database connected successfully.');
+
+        app.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}`);
+        })
+    } catch (error) {
+        console.error('Unable to connect to the database:', error);
+    }
 })();
 
